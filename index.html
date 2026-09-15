@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VoxShield — Real-Time Voice Biometric Firewall</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="mobile-app-theme">
+    <div class="cyber-grid-overlay"></div>
+    <div class="ambient-glow glow-top-cyan"></div>
+    <div class="ambient-glow glow-bottom-indigo"></div>
+    <div id="vox-app" class="app-viewport">
+        <!-- Desktop Companion Bar (Discreet header on widescreen, hides on pure mobile) -->
+        <header class="companion-topbar">
+            <div class="topbar-brand">
+                <div class="app-icon-shield">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                        <path d="M12 2L3 6V11.5C3 17.5 7 21.5 12 22.5C17 21.5 21 17.5 21 11.5V6L12 2Z" fill="url(#brand-grad)" stroke="#06b6d4" stroke-width="1.5"/>
+                        <path d="M9 12L11 14L15 9.5" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <defs>
+                            <linearGradient id="brand-grad" x1="12" y1="2" x2="12" y2="22.5" gradientUnits="userSpaceOnUse">
+                                <stop stop-color="#0284c7"/>
+                                <stop stop-color="#0f172a"/>
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <div class="app-brand-info">
+                    <div class="app-title-row">
+                        <span class="app-name" data-i18n="app_title">VoxShield Mobile</span>
+                        <span class="app-badge">v3.4 Production</span>
+                    </div>
+                    <span class="app-tagline" data-i18n="app_tagline">Real-Time Mobile Voice Biometric Defense</span>
+                </div>
+            </div>
+
+            <div class="topbar-controls">
+                <!-- Multi-Language Selector Pills -->
+                <div class="lang-selector-dock" title="Switch Interface Language">
+                    <button class="lang-pill active-lang" data-lang-select="en">EN</button>
+                    <button class="lang-pill" data-lang-select="hi">हिन्दी</button>
+                    <button class="lang-pill" data-lang-select="ta">தமிழ்</button>
+                    <button class="lang-pill" data-lang-select="te">తెలుగు</button>
+                    <button class="lang-pill" data-lang-select="bn">বাংলা</button>
+                </div>
+
+                <div id="ws-status-badge" class="spec-pill status-connected">
+                    <span class="spec-dot dot-green"></span>
+                    <span data-i18n="device_protected">Device Protection Active</span>
+                </div>
+
+                <!-- Theme Switcher (Light / Dark) -->
+                <button id="btn-theme-toggle" class="btn-theme-toggle" title="Toggle Light / Dark Environment">
+                    <svg class="icon-sun" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+                    <svg class="icon-moon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none;"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+                    <span class="theme-label" id="theme-btn-text">Light Mode</span>
+                </button>
+
+                <button id="toggle-soc-view" class="btn-companion-toggle" title="Toggle Live Forensic Spectrum Telemetry">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                    <span data-i18n="soc_telemetry">SOC Telemetry</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Workspace (Houses Mobile Device App + Optional Forensic Drawer) -->
+        <main id="app-workspace" class="mobile-layout-container">
+            <!-- Sleek Smartphone Application Shell -->
+            <div class="mobile-chassis">
+                <div class="mobile-screen-wrapper">
+                    <!-- Native Smartphone Status Bar -->
+                    <div class="native-status-bar">
+                        <span id="device-clock" class="status-time">09:41</span>
+                        <div class="dynamic-island-pill">
+                            <span class="island-mic-dot"></span>
+                            <span class="island-text" data-i18n="island_active">VoxShield Shield Active</span>
+                        </div>
+                        <div class="status-icons">
+                            <svg width="15" height="11" viewBox="0 0 15 11" fill="currentColor">
+                                <rect x="0.5" y="7" width="2" height="4" rx="0.5"/>
+                                <rect x="4.5" y="5" width="2" height="6" rx="0.5"/>
+                                <rect x="8.5" y="2.5" width="2" height="8.5" rx="0.5"/>
+                                <rect x="12.5" y="0" width="2" height="11" rx="0.5"/>
+                            </svg>
+                            <span class="network-type">5G</span>
+                            <div class="battery-icon">
+                                <div class="battery-level"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Scrollable Mobile Content Stage -->
+                    <div class="mobile-content-area">
+                        <!-- SCREEN 1: DASHBOARD (APP HOME) -->
+                        <section id="screen-dashboard" class="mobile-screen active">
+                            <!-- Mobile App Header Banner -->
+                            <div class="mobile-app-header">
+                                <div class="header-user-row">
+                                    <div>
+                                        <h1 class="mobile-header-title" data-i18n="header_title">VoxShield Guard</h1>
+                                        <p class="mobile-header-sub" data-i18n="header_sub">Biometric Call Protection is Active</p>
+                                    </div>
+                                    <div class="protection-switch-ui">
+                                        <div class="ios-switch active">
+                                            <div class="switch-thumb"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Mobile Quick Stats Row -->
+                            <div class="mobile-stats-row">
+                                <div class="mobile-stat-tile">
+                                    <span class="stat-number text-cyan">99.8%</span>
+                                    <span class="stat-caption" data-i18n="stat_clone_acc">Clone Accuracy</span>
+                                </div>
+                                <div class="mobile-stat-tile">
+                                    <span class="stat-number text-emerald">340<small>ms</small></span>
+                                    <span class="stat-caption" data-i18n="stat_latency">Latency Cutoff</span>
+                                </div>
+                                <div class="mobile-stat-tile">
+                                    <span class="stat-number text-amber">DPDP</span>
+                                    <span class="stat-caption" data-i18n="stat_dpdp">Zero Audio Stored</span>
+                                </div>
+                            </div>
+
+                            <!-- Call Simulation Launcher List -->
+                            <div class="mobile-group-box">
+                                <div class="group-box-header">
+                                    <span class="group-title" data-i18n="test_scenarios_title">TEST CALL SCENARIOS</span>
+                                    <span class="group-badge" data-i18n="real_audio_badge">Real Audio</span>
+                                </div>
+
+                                <div class="mobile-list-group">
+                                    <!-- Scenario 1: Authentic -->
+                                    <div id="call-authentic" class="mobile-list-item interactive-item">
+                                        <div class="item-avatar avatar-emerald">AS</div>
+                                        <div class="item-info">
+                                            <div class="item-title-row">
+                                                <span class="item-name" data-i18n="sc_authentic_name">Aarav Sharma</span>
+                                                <span class="item-pill pill-verified" data-i18n="sc_authentic_tag">Enrolled Baseline</span>
+                                            </div>
+                                            <span class="item-sub" data-i18n="sc_authentic_sub">Family member • Legitimate voice sample</span>
+                                        </div>
+                                        <div class="item-action-icon text-cyan">
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                                        </div>
+                                    </div>
+
+                                    <!-- Scenario 2: Deepfake Scam -->
+                                    <div id="call-deepfake" class="mobile-list-item interactive-item">
+                                        <div class="item-avatar avatar-rose">
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path></svg>
+                                        </div>
+                                        <div class="item-info">
+                                            <div class="item-title-row">
+                                                <span class="item-name" data-i18n="sc_deepfake_name">AI Voice Clone Scam</span>
+                                                <span class="item-pill pill-danger" data-i18n="sc_deepfake_tag">High Threat</span>
+                                            </div>
+                                            <span class="item-sub" data-i18n="sc_deepfake_sub">Spoofed caller • Urgent extortion demand</span>
+                                        </div>
+                                        <div class="item-action-icon text-rose">
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                                        </div>
+                                    </div>
+
+                                    <!-- Scenario 3: Replay Attack -->
+                                    <div id="call-replay" class="mobile-list-item interactive-item">
+                                        <div class="item-avatar avatar-amber">
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
+                                        </div>
+                                        <div class="item-info">
+                                            <div class="item-title-row">
+                                                <span class="item-name" data-i18n="sc_replay_name">Acoustic Replay Attack</span>
+                                                <span class="item-pill pill-warning" data-i18n="sc_replay_tag">Transducer Cutoff</span>
+                                            </div>
+                                            <span class="item-sub" data-i18n="sc_replay_sub">Recorded voice replay • OTP interception</span>
+                                        </div>
+                                        <div class="item-action-icon text-amber">
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                                        </div>
+                                    </div>
+
+                                    <!-- Scenario 4: Live Mic -->
+                                    <div id="call-mic" class="mobile-list-item interactive-item">
+                                        <div class="item-avatar avatar-cyan">
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+                                        </div>
+                                        <div class="item-info">
+                                            <div class="item-title-row">
+                                                <span class="item-name" data-i18n="sc_mic_name">Direct Microphone Test</span>
+                                                <span class="item-pill pill-cyan" data-i18n="sc_mic_tag">Hardware DSP</span>
+                                            </div>
+                                            <span class="item-sub" data-i18n="sc_mic_sub">Stream your live speech through the engine</span>
+                                        </div>
+                                        <div class="item-action-icon text-cyan">
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Mobile Compliance Card -->
+                            <div class="mobile-privacy-card">
+                                <div class="privacy-card-icon">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                                </div>
+                                <div class="privacy-card-text">
+                                    <strong data-i18n="dpdp_title">DPDP Act 2023 Compliant</strong>
+                                    <span data-i18n="dpdp_desc">Raw audio is analyzed strictly in temporary RAM and immediately discarded. Zero audio files are saved.</span>
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- SCREEN 2: LIVE IN-CALL INTERCEPTION -->
+                        <section id="screen-live-call" class="mobile-screen">
+                            <div class="mobile-in-call-screen">
+                                <!-- Secure Connection Capsule -->
+                                <div class="call-top-security-capsule">
+                                    <div class="security-lock-icon">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                                    </div>
+                                    <span data-i18n="srtp_encrypted">SRTP ENCRYPTED CALL • VOXSHIELD ACTIVE</span>
+                                </div>
+
+                                <!-- Caller Identity Cluster -->
+                                <div class="mobile-caller-card">
+                                    <div class="avatar-ring-container">
+                                        <div id="caller-avatar-circle" class="mobile-caller-avatar">AS</div>
+                                        <div class="avatar-radar-pulse"></div>
+                                    </div>
+                                    <h2 id="caller-display-name" class="mobile-caller-name">Aarav Sharma</h2>
+                                    <span id="caller-display-phone" class="mobile-caller-phone">+91 98765 43210</span>
+                                    <span id="call-timer" class="mobile-call-duration">00:00</span>
+                                </div>
+
+                                <!-- Out-of-band Push Notification Banner (Hidden by default) -->
+                                <div id="trusted-channel-push-banner" class="mobile-push-banner hidden">
+                                    <div class="push-top-row">
+                                        <div class="push-tag-cluster">
+                                            <span class="push-pulsing-dot"></span>
+                                            <strong>FIDO2 Cross-Verification Dispatched</strong>
+                                        </div>
+                                    </div>
+                                    <div class="push-body-text">
+                                        Secondary verification challenge sent to <span id="push-contact-name" class="text-amber">Contact</span>.
+                                        <div id="push-alert-details" class="push-subtext">Awaiting cryptographic device confirmation...</div>
+                                    </div>
+                                    <div class="push-buttons-row">
+                                        <button id="btn-push-approve" class="btn-push-action btn-push-pass">Simulate "Approved" (Real)</button>
+                                        <button id="btn-push-reject" class="btn-push-action btn-push-fail">Simulate "Denied" (Scam)</button>
+                                    </div>
+                                </div>
+
+                                <!-- Live Voice Oscilloscope Waveform Display -->
+                                <div class="mobile-oscilloscope-card">
+                                    <div class="canvas-header-row">
+                                        <div class="volume-stream-wrap">
+                                            <span class="mono-label">PCM STREAM</span>
+                                            <div class="audio-vu-meter">
+                                                <input type="range" id="voice-volume" class="mobile-vol-slider" min="0" max="1" step="0.05" value="0.85" title="Call Volume">
+                                            </div>
+                                        </div>
+                                        <span class="canvas-spec">16.0 kHz &bull; PCM-16</span>
+                                    </div>
+                                    <div class="canvas-wrap">
+                                        <canvas id="oscilloscope-canvas" width="380" height="75"></canvas>
+                                    </div>
+                                </div>
+
+                                <!-- Five Live Defense Vectors Inset Deck -->
+                                <div class="mobile-defense-grid">
+                                    <div class="defense-card">
+                                        <span class="defense-label" data-i18n="call_status">CALL STATUS</span>
+                                        <div id="indicator-call-status" class="indicator-val status-gray">IDLE / READY</div>
+                                    </div>
+                                    <div class="defense-card">
+                                        <span class="defense-label" data-i18n="synthesis">SYNTHESIS (AASIST)</span>
+                                        <div id="indicator-authenticity" class="indicator-val status-gray">NOMINAL</div>
+                                    </div>
+                                    <div class="defense-card">
+                                        <span class="defense-label" data-i18n="speaker">SPEAKER (ECAPA)</span>
+                                        <div id="indicator-speaker" class="indicator-val status-gray">UNVERIFIED</div>
+                                    </div>
+                                    <div class="defense-card">
+                                        <span class="defense-label" data-i18n="replay">REPLAY DETECT</span>
+                                        <div id="indicator-replay" class="indicator-val status-gray">NOMINAL</div>
+                                    </div>
+                                    <div class="defense-card full-span">
+                                        <span class="defense-label" data-i18n="semantic_vector">SEMANTIC COERCION VECTOR</span>
+                                        <div id="indicator-context" class="indicator-val status-gray">NEUTRAL</div>
+                                    </div>
+                                </div>
+
+                                <!-- Real-Time Verifiable Decision Banner -->
+                                <div id="indicator-decision-banner" class="mobile-decision-banner banner-neutral">
+                                    <div class="decision-icon-wrap">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                                    </div>
+                                    <div class="decision-text-cluster">
+                                        <div id="indicator-decision-text" class="decision-title">System Standby</div>
+                                        <div id="indicator-decision-reason" class="decision-desc">Awaiting incoming voice stream for live attestation.</div>
+                                    </div>
+                                </div>
+
+                                <!-- Live Speech Transcript Bubble -->
+                                <div class="mobile-transcript-card">
+                                    <div class="transcript-head">
+                                        <span class="transcript-title">LIVE SPEECH TRANSCRIPT</span>
+                                        <span class="transcript-tag">RAM Only</span>
+                                    </div>
+                                    <div id="transcript-stream" class="transcript-scroll-area">
+                                        <div class="transcript-empty" data-i18n="transcript_empty">Audio idle. Voice transcription streams here in real-time.</div>
+                                    </div>
+                                </div>
+
+                                <!-- Native Mobile Circular Floating In-Call Controls -->
+                                <div class="mobile-call-actions-dock">
+                                    <button id="btn-mute-call" class="mobile-circle-btn btn-secondary" title="Mute Microphone">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"></line><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+                                        <span class="action-caption" data-i18n="btn_mute">Mute</span>
+                                    </button>
+
+                                    <button id="btn-trigger-push" class="mobile-circle-btn btn-secondary" title="FIDO2 Cross-Verification Push">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+                                        <span class="action-caption" data-i18n="btn_push">Push Verify</span>
+                                    </button>
+
+                                    
+
+                                    <button id="btn-block-call" class="mobile-circle-btn btn-secondary text-rose" title="Block Caller & Report">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg>
+                                        <span class="action-caption" data-i18n="btn_block">Block</span>
+                                    </button>
+
+                                    <!-- Hangup Button (Standard Red Circle) -->
+                                    <button id="btn-end-call" class="mobile-circle-btn btn-hangup" title="End Call">
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                                        <span class="action-caption" data-i18n="btn_end">End Call</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- SCREEN 3: TRUSTED CIRCLE -->
+                        <section id="screen-trusted-circle" class="mobile-screen">
+                            <div class="mobile-screen-header">
+                                <div class="header-text-cluster">
+                                    <h2 class="screen-title" data-i18n="trusted_title">Trusted Circle</h2>
+                                    <p class="screen-sub">Enrolled Voiceprint Directory</p>
+                                </div>
+                                <button id="btn-enroll-contact" class="btn-mobile-primary">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                    <span>Enroll</span>
+                                </button>
+                            </div>
+
+                            <p class="screen-intro-text">
+                                Voice biometric vectors (192-dim ECAPA-TDNN) are cryptographically stored on-device. Raw audio is never saved.
+                            </p>
+
+                            <div id="trusted-circle-list" class="mobile-contacts-list">
+                                <!-- Populated dynamically by app.js -->
+                            </div>
+                        </section>
+
+                        <!-- SCREEN 4: INCIDENTS -->
+                        <section id="screen-incidents" class="mobile-screen">
+                            <div class="mobile-screen-header">
+                                <div class="header-text-cluster">
+                                    <h2 class="screen-title" data-i18n="incidents_title">Incident Ledger</h2>
+                                    <p class="screen-sub">Cryptographic Call Security Logs</p>
+                                </div>
+                                <span class="tag-dpdp">DPDP 2023</span>
+                            </div>
+
+                            <p class="screen-intro-text">
+                                Immutable audit trail for detected voice spoofing and deepfake extortion attempts. Logs auto-purge per data retention rules.
+                            </p>
+
+                            <div id="incidents-list" class="mobile-incidents-list">
+                                <!-- Populated dynamically by app.js -->
+                            </div>
+                        </section>
+
+                        <!-- SCREEN 5: SETTINGS -->
+                        <section id="screen-settings" class="mobile-screen">
+                            <div class="mobile-screen-header">
+                                <div class="header-text-cluster">
+                                    <h2 class="screen-title" data-i18n="settings_title">Settings</h2>
+                                    <p class="screen-sub" data-i18n="settings_sub">Security Policies & Models</p>
+                                </div>
+                            </div>
+
+                            <!-- Group 1: Appearance & Theme Switcher -->
+                            <div class="mobile-settings-group">
+                                <span class="settings-group-label" data-i18n="sec_appearance">APPEARANCE & THEME</span>
+                                <div class="settings-item-row interactive-setting" id="btn-theme-toggle-settings" role="button" tabindex="0" title="Click to toggle Light/Dark Mode">
+                                    <div class="setting-text">
+                                        <span class="setting-title" id="settings-theme-title" data-i18n="theme_light_title">Light Theme (Active)</span>
+                                        <span class="setting-desc" data-i18n="theme_desc">Switch between executive Light Mode and Dark Cyberpunk theme.</span>
+                                    </div>
+                                    <div class="theme-switch-pill" id="settings-theme-pill">
+                                        <span class="switch-knob"></span>
+                                        <span class="switch-label" id="settings-switch-label">Light</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Group 2: Voice & Interface Language -->
+                            <div class="mobile-settings-group">
+                                <span class="settings-group-label" data-i18n="sec_language">VOICE & INTERFACE LANGUAGE</span>
+                                <div class="settings-item-row flex-column-item">
+                                    <div class="setting-text mb-2">
+                                        <span class="setting-desc" data-i18n="lang_desc">Voice recognition and synthesizers dynamically adapt to your selected language.</span>
+                                    </div>
+                                    <div class="settings-lang-grid">
+                                        <button class="settings-lang-btn active-lang" data-lang-select="en">English (EN)</button>
+                                        <button class="settings-lang-btn" data-lang-select="hi">हिन्दी (HI)</button>
+                                        <button class="settings-lang-btn" data-lang-select="ta">தமிழ் (TA)</button>
+                                        <button class="settings-lang-btn" data-lang-select="te">తెలుగు (TE)</button>
+                                        <button class="settings-lang-btn" data-lang-select="bn">বাংলা (BN)</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mobile-settings-group">
+                                <span class="settings-group-label" data-i18n="sec_defense">DEFENSE ENGINE</span>
+                                <div class="settings-item-row">
+                                    <div class="setting-text">
+                                        <span class="setting-title" data-i18n="aasist_title">AASIST-v2 Synthesis Threshold</span>
+                                        <span class="setting-desc" data-i18n="aasist_desc">Alert cutoff for phase vocoder anomalies</span>
+                                    </div>
+                                    <span class="setting-val-tag">0.75 (Strict)</span>
+                                </div>
+                                <div class="settings-item-row">
+                                    <div class="setting-text">
+                                        <span class="setting-title" data-i18n="ecapa_title">ECAPA Speaker Verification</span>
+                                        <span class="setting-desc" data-i18n="ecapa_desc">Cosine distance required for pass</span>
+                                    </div>
+                                    <span class="setting-val-tag">0.70 Match</span>
+                                </div>
+                                <div class="settings-item-row">
+                                    <div class="setting-text">
+                                        <span class="setting-title" data-i18n="filter_title">Acoustic Replay Filter</span>
+                                        <span class="setting-desc" data-i18n="filter_desc">Detect loudspeaker frequency cutoffs</span>
+                                    </div>
+                                    <span class="setting-val-tag">8 kHz Active</span>
+                                </div>
+                            </div>
+
+                            <div class="mobile-settings-group">
+                                <span class="settings-group-label" data-i18n="sec_privacy">PRIVACY & COMPLIANCE</span>
+                                <div class="settings-item-row">
+                                    <div class="setting-text">
+                                        <span class="setting-title" data-i18n="retention_title">Zero Audio Retention</span>
+                                        <span class="setting-desc" data-i18n="retention_desc">DPDP Act 2023 ephemeral RAM buffer</span>
+                                    </div>
+                                    <span class="status-badge-green">ENFORCED</span>
+                                </div>
+                                <div class="settings-item-row">
+                                    <div class="setting-text">
+                                        <span class="setting-title" data-i18n="purge_title">Log Auto-Purge TTL</span>
+                                        <span class="setting-desc" data-i18n="purge_desc">Cryptographic incident metadata expiry</span>
+                                    </div>
+                                    <span class="setting-val-tag">365 Days</span>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+
+                    <!-- Native Mobile Bottom Tab Navigation -->
+                    <nav class="mobile-bottom-nav">
+                        <button class="nav-tab-btn active" data-screen="dashboard">
+                            <div class="tab-icon-wrap">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="3" y="3" width="7" height="9"></rect>
+                                    <rect x="14" y="3" width="7" height="5"></rect>
+                                    <rect x="14" y="12" width="7" height="9"></rect>
+                                    <rect x="3" y="16" width="7" height="5"></rect>
+                                </svg>
+                            </div>
+                            <span class="tab-caption" data-i18n="tab_shield">Shield</span>
+                        </button>
+
+                        <button class="nav-tab-btn" data-screen="live-call">
+                            <div class="tab-icon-wrap">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                                </svg>
+                                <span class="tab-ping-dot"></span>
+                            </div>
+                            <span class="tab-caption" data-i18n="tab_live_call">Live Call</span>
+                        </button>
+
+                        <button class="nav-tab-btn" data-screen="trusted-circle">
+                            <div class="tab-icon-wrap">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                    <circle cx="9" cy="7" r="4"></circle>
+                                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                </svg>
+                            </div>
+                            <span class="tab-caption" data-i18n="tab_circle">Circle</span>
+                        </button>
+
+                        <button class="nav-tab-btn" data-screen="incidents">
+                            <div class="tab-icon-wrap">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                                    <line x1="12" y1="9" x2="12" y2="13"></line>
+                                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                                </svg>
+                            </div>
+                            <span class="tab-caption" data-i18n="tab_incidents">Incidents</span>
+                        </button>
+
+                        <button class="nav-tab-btn" data-screen="settings">
+                            <div class="tab-icon-wrap">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                                </svg>
+                            </div>
+                            <span class="tab-caption" data-i18n="tab_settings">Settings</span>
+                        </button>
+                    </nav>
+
+                    <!-- Native iOS Home Indicator Bar -->
+                    <div class="ios-home-indicator"></div>
+                </div>
+            </div>
+
+            <!-- Companion SOC Telemetry Drawer (Widescreen Inspection Panel) -->
+            <aside class="soc-inspector-drawer">
+                <div class="soc-drawer-header">
+                    <div class="soc-brand-row">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#06b6d4" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                        <span class="soc-title">FORENSIC TELEMETRY DOCK</span>
+                    </div>
+                    <span class="soc-chip">100 Hz DSP</span>
+                </div>
+
+                <div class="soc-drawer-body">
+                    <!-- FFT Spectrum -->
+                    <div class="soc-card">
+                        <div class="soc-card-head">
+                            <span>FFT AUDIO SPECTRUM</span>
+                            <span class="mono-sub">0 - 8000 Hz</span>
+                        </div>
+                        <div class="soc-canvas-box">
+                            <canvas id="soc-spectrum-canvas" width="310" height="75"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Raw Oscilloscope -->
+                    <div class="soc-card">
+                        <div class="soc-card-head">
+                            <span>RAW AUDIO OSCILLOSCOPE</span>
+                            <span class="mono-sub">PCM-16 Mono</span>
+                        </div>
+                        <div class="soc-canvas-box">
+                            <canvas id="soc-oscilloscope-canvas" width="310" height="75"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Real-time metrics -->
+                    <div class="soc-metrics-box">
+                        <div class="soc-metric-tile">
+                            <div class="metric-head">
+                                <span>AASIST Synthesis Probability:</span>
+                                <span id="soc-aasist-score" class="mono-score">0.02</span>
+                            </div>
+                            <div class="meter-track">
+                                <div id="soc-aasist-bar" class="meter-fill fill-safe" style="width: 2%;"></div>
+                            </div>
+                        </div>
+
+                        <div class="soc-metric-tile">
+                            <div class="metric-head">
+                                <span>ECAPA Speaker Cosine Similarity:</span>
+                                <span id="soc-speaker-score" class="mono-score">0.94</span>
+                            </div>
+                            <div class="meter-track">
+                                <div id="soc-speaker-bar" class="meter-fill fill-safe" style="width: 94%;"></div>
+                            </div>
+                        </div>
+
+                        <div class="soc-metric-tile">
+                            <div class="metric-head">
+                                <span>Acoustic Replay Score:</span>
+                                <span id="soc-replay-score" class="mono-score">0.05</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Forensic Event Stream -->
+                    <div class="soc-card flex-fill">
+                        <div class="soc-card-head">
+                            <span>FORENSIC TELEMETRY STREAM</span>
+                            <span class="mono-sub">LIVE AUDIT</span>
+                        </div>
+                        <div id="soc-transcript-stream" class="soc-log-window">
+                            <div class="log-line">[SYSTEM] VoxShield mobile security runtime ready.</div>
+                            <div class="log-line">[DSP] AASIST-v2 + ECAPA-TDNN ONNX models resident in memory.</div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </main>
+
+        <!-- Dynamic Challenge Modal (Native Mobile Bottom Sheet) -->
+        <div id="challenge-modal" class="modal-overlay hidden">
+            <div class="modal-sheet challenge-sheet">
+                <div class="sheet-grab-handle"></div>
+                <div class="sheet-header">
+                    <div class="sheet-title-cluster">
+                        <div class="sheet-icon-amber">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                        </div>
+                        <h3>Dynamic Liveness Challenge</h3>
+                    </div>
+                </div>
+                <div class="sheet-body">
+                    <p class="sheet-desc">
+                        Instruct caller to repeat this randomly generated phrase. Pre-recorded clones and fixed voice models cannot generate novel phrases instantaneously.
+                    </p>
+                    <div class="phrase-capsule">
+                        <span class="capsule-sub">CHALLENGE PHRASE:</span>
+                        <div id="challenge-phrase-display" class="phrase-text">"Generating runtime phrase..."</div>
+                    </div>
+                    <div id="challenge-status-text" class="challenge-status-sub">
+                        Status: Awaiting phrase response.
+                    </div>
+                </div>
+                <div class="sheet-actions">
+                    <button id="btn-challenge-listen" class="btn-sheet btn-sheet-listen">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path></svg>
+                        <span>Listen to Mic</span>
+                    </button>
+                    <button id="btn-challenge-pass" class="btn-sheet btn-sheet-pass">Verified</button>
+                    <button id="btn-challenge-fail" class="btn-sheet btn-sheet-fail">Deepfake</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Biometric Voiceprint Enrollment Modal (Native Mobile Bottom Sheet) -->
+        <div id="enroll-modal" class="modal-overlay hidden">
+            <div class="modal-sheet enroll-sheet">
+                <div class="sheet-grab-handle"></div>
+                <div class="sheet-header">
+                    <div class="sheet-title-cluster">
+                        <div class="sheet-icon-cyan">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><line x1="19" y1="8" x2="19" y2="14"></line><line x1="16" y1="11" x2="22" y2="11"></line></svg>
+                        </div>
+                        <h3>Enroll Voiceprint</h3>
+                    </div>
+                </div>
+                <div class="sheet-body">
+                    <p class="sheet-desc">
+                        Register trusted contacts for automatic passive verification. A 192-dimensional vector embedding is computed and encrypted.
+                    </p>
+                    <div class="form-group">
+                        <label for="enroll-name">Full Name</label>
+                        <input type="text" id="enroll-name" class="mobile-input" placeholder="e.g. Priya Sharma">
+                    </div>
+                    <div class="form-group">
+                        <label for="enroll-phone">Phone Number</label>
+                        <input type="text" id="enroll-phone" class="mobile-input" placeholder="e.g. +91 98765 43210">
+                    </div>
+                    <div class="form-group">
+                        <label for="enroll-relation">Relationship / Role</label>
+                        <input type="text" id="enroll-relation" class="mobile-input" placeholder="e.g. Spouse / Family">
+                    </div>
+                </div>
+                <div class="sheet-actions">
+                    <button id="btn-close-enroll-modal" class="btn-sheet btn-sheet-cancel">Cancel</button>
+                    <button id="btn-save-enrollment" class="btn-sheet btn-sheet-confirm">Save Voiceprint</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Core Engine & Application Scripts -->
+    <script src="i18n.js"></script>
+    <script src="scenarios.js"></script>
+    <script src="audio-engine.js"></script>
+    <script src="detection-engine.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

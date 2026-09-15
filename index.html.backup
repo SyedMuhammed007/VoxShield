@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VoxShield — Real-Time Voice Call Impersonation & Deepfake Detection System</title>
+    <meta name="description" content="Real-time AI voice deepfake detection, speaker verification, replay attack prevention, and dynamic challenge verification during live phone calls.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="theme-dark">
+    <!-- Main Shell -->
+    <div id="vox-app" class="vox-container">
+        
+        <!-- Top Defense Navigation Bar -->
+        <header class="vox-header">
+            <div class="header-brand">
+                <div class="shield-logo">
+                    <span class="shield-icon">🛡️</span>
+                    <span class="pulse-ring"></span>
+                </div>
+                <div class="brand-text">
+                    <div class="brand-title">VOXSHIELD</div>
+                    <div class="brand-subtitle">CYBER CALL DEFENSE • SIH PROTOTYPE</div>
+                </div>
+            </div>
+
+            <div class="header-telemetry">
+                <div class="status-pill security-armed">
+                    <span class="dot-blink green"></span>
+                    <span>SHIELD ARMED • WSS TLS 1.3</span>
+                </div>
+                <div id="ws-status-badge" class="status-pill offline">
+                    STANDALONE ML CORE
+                </div>
+                <div class="volume-control-box">
+                    <span class="vol-icon">🔊 Voice:</span>
+                    <input type="range" id="voice-volume" min="0" max="1" step="0.05" value="0.85" title="Adjust spoken voice volume">
+                </div>
+                <button id="toggle-soc-view" class="btn btn-sm btn-outline">
+                    <span>🖥️ Dual SOC View</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Dynamic Trusted-Channel Push Alert (Simulates Mobile Notification) -->
+        <div id="trusted-channel-push-banner" class="push-alert-banner hidden">
+            <div class="push-alert-icon">🔔</div>
+            <div class="push-alert-content">
+                <div id="push-contact-name" class="push-title">VoxShield Security • David Chen</div>
+                <div id="push-alert-details" class="push-desc">High-Stakes Request: Authorize ₹1,50,000 transfer on current call?</div>
+                <div class="push-meta">Cross-Verification sent via Encrypted Firebase Cloud Messaging</div>
+            </div>
+            <div class="push-actions">
+                <button id="btn-push-approve" class="btn btn-sm btn-success">✅ Yes, Approve</button>
+                <button id="btn-push-reject" class="btn btn-sm btn-danger">🚨 No, Block & Alert</button>
+            </div>
+        </div>
+
+        <!-- Main Workspace (Dual View: Mobile Simulator + SOC Center) -->
+        <main id="app-workspace" class="app-workspace">
+
+            <!-- LEFT: Hyper-Realistic Mobile Device Frame -->
+            <div class="mobile-device-wrapper">
+                <div class="mobile-device">
+                    <!-- Dynamic Island / Speaker Notch -->
+                    <div class="mobile-notch">
+                        <div class="notch-camera"></div>
+                        <div class="notch-speaker"></div>
+                    </div>
+
+                    <!-- Mobile Status Bar -->
+                    <div class="mobile-status-bar">
+                        <span class="time" id="device-clock">09:41</span>
+                        <div class="bar-icons">
+                            <span>5G</span>
+                            <span>📶</span>
+                            <span>🔒 AES-256</span>
+                            <span>🔋 98%</span>
+                        </div>
+                    </div>
+
+                    <!-- SCREEN 1: DASHBOARD -->
+                    <section id="screen-dashboard" class="mobile-screen active">
+                        <div class="screen-content">
+                            <div class="shield-hero-card">
+                                <div class="hero-icon-wrap">
+                                    <div class="hero-shield-glow">🛡️</div>
+                                </div>
+                                <h3>VoxShield Active</h3>
+                                <p>Deepfake Detection & Impersonation Guard is active for all voice calls.</p>
+                                <div class="protection-pills">
+                                    <span class="pill-mini">AASIST Anti-Spoof</span>
+                                    <span class="pill-mini">ECAPA-TDNN Voiceprint</span>
+                                    <span class="pill-mini">Silero Liveness</span>
+                                </div>
+                            </div>
+
+                            <!-- Call Simulation Launchers -->
+                            <div class="section-title-bar">
+                                <h4>Test Scenarios (Real Voice Playback)</h4>
+                                <span class="tag-sih">Live Demo</span>
+                            </div>
+
+                            <div class="scenarios-grid">
+                                <div id="call-authentic" class="scenario-card card-authentic">
+                                    <div class="scenario-avatar">👩</div>
+                                    <div class="scenario-info">
+                                        <div class="sc-title">1. Authentic Family Call</div>
+                                        <div class="sc-desc">Sarah Miller (Sister) • Matching Voiceprint</div>
+                                        <div class="sc-badge text-green">🟢 Authentic & Verified</div>
+                                    </div>
+                                    <button class="btn-call-icon">📞</button>
+                                </div>
+
+                                <div id="call-deepfake" class="scenario-card card-deepfake">
+                                    <div class="scenario-avatar">👔</div>
+                                    <div class="scenario-info">
+                                        <div class="sc-title">2. AI Voice Clone Scam</div>
+                                        <div class="sc-desc">Spoofed CFO • Urgent ₹1,50,000 Transfer</div>
+                                        <div class="sc-badge text-red">🔴 High Risk Impersonation</div>
+                                    </div>
+                                    <button class="btn-call-icon alert">📞</button>
+                                </div>
+
+                                <div id="call-replay" class="scenario-card card-replay">
+                                    <div class="scenario-avatar">🤖</div>
+                                    <div class="scenario-info">
+                                        <div class="sc-title">3. Replay Attack Scam</div>
+                                        <div class="sc-desc">Acoustic Loop • OTP Credential Harvesting</div>
+                                        <div class="sc-badge text-yellow">⚠️ Replay / Liveness Fail</div>
+                                    </div>
+                                    <button class="btn-call-icon alert">📞</button>
+                                </div>
+
+                                <div id="call-mic" class="scenario-card card-mic">
+                                    <div class="scenario-avatar">🎙️</div>
+                                    <div class="scenario-info">
+                                        <div class="sc-title">4. Live Microphone Mode</div>
+                                        <div class="sc-desc">Speak into your mic • Real-time detection</div>
+                                        <div class="sc-badge text-cyan">⚡ Live Speech Recognition</div>
+                                    </div>
+                                    <button class="btn-call-icon mic">🎙️</button>
+                                </div>
+                            </div>
+
+                            <!-- Compliance Banner -->
+                            <div class="dpdp-banner">
+                                <span>⚖️ DPDP Act 2023 Compliant</span>
+                                <small>Raw audio discarded post-inference. TTL-bound encrypted logs.</small>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- SCREEN 2: LIVE PROTECTION (IN-CALL) -->
+                    <section id="screen-live-call" class="mobile-screen">
+                        <div class="screen-content in-call-view">
+                            
+                            <!-- Caller Header -->
+                            <div class="call-top-header">
+                                <div id="caller-avatar-circle" class="caller-avatar-large">👤</div>
+                                <div id="caller-display-name" class="caller-name">David Chen (Spoofed)</div>
+                                <div id="caller-display-phone" class="caller-phone">+91 91234 56789</div>
+                                <div id="call-timer" class="call-timer-display">00:00</div>
+                            </div>
+
+                            <!-- Real-time Oscilloscope Waveform -->
+                            <div class="waveform-box">
+                                <canvas id="oscilloscope-canvas" width="340" height="64"></canvas>
+                                <div class="waveform-label">REAL-TIME ENCRYPTED PCM AUDIO STREAM</div>
+                            </div>
+
+                            <!-- 5 Live Defense Indicator Cards (Exact to Spec Section 5) -->
+                            <div class="indicators-grid">
+                                
+                                <div class="indicator-item">
+                                    <div class="indicator-label">CALL STATUS</div>
+                                    <div id="indicator-call-status" class="indicator-val status-green">🟢 CONNECTED</div>
+                                </div>
+
+                                <div class="indicator-item">
+                                    <div class="indicator-label">VOICE AUTHENTICITY (AASIST)</div>
+                                    <div id="indicator-authenticity" class="indicator-val status-green">🟢 AUTHENTIC VOICE</div>
+                                </div>
+
+                                <div class="indicator-item">
+                                    <div class="indicator-label">SPEAKER (ECAPA-TDNN)</div>
+                                    <div id="indicator-speaker" class="indicator-val status-green">🟢 VERIFIED</div>
+                                </div>
+
+                                <div class="indicator-item">
+                                    <div class="indicator-label">REPLAY (SILERO-VAD)</div>
+                                    <div id="indicator-replay" class="indicator-val status-green">🟢 NOT DETECTED</div>
+                                </div>
+
+                                <div class="indicator-item full-width">
+                                    <div class="indicator-label">CONVERSATION CONTEXT (WHISPER NLP)</div>
+                                    <div id="indicator-context" class="indicator-val status-green">🟢 NORMAL CONVERSATION</div>
+                                </div>
+                            </div>
+
+                            <!-- Primary Decision Banner -->
+                            <div id="indicator-decision-banner" class="decision-banner banner-green">
+                                <div class="decision-content">
+                                    <div class="decision-tag">PREVENTION ACTION</div>
+                                    <div id="indicator-decision-text" class="decision-headline">🛡️ VERIFIED (CALL SECURE)</div>
+                                    <div id="indicator-decision-reason" class="decision-sub">Biometric voiceprint matches Trusted Circle.</div>
+                                </div>
+                            </div>
+
+                            <!-- Live Transcript Stream -->
+                            <div class="transcript-wrapper">
+                                <div class="transcript-header">
+                                    <span>LIVE TRANSCRIPT (WHISPER ASR)</span>
+                                    <span class="transcript-enc">🔒 AES-256</span>
+                                </div>
+                                <div id="transcript-stream" class="transcript-stream">
+                                    <div class="transcript-msg system-note">Waiting for speech input...</div>
+                                </div>
+                            </div>
+
+                            <!-- Interactive Call Control Toolbar -->
+                            <div class="call-controls-bar">
+                                <button id="btn-trigger-challenge" class="btn-ctrl" title="Initiate Dynamic Voice Challenge">
+                                    <span class="ctrl-icon">🎲</span>
+                                    <span class="ctrl-lbl">Challenge</span>
+                                </button>
+                                <button id="btn-trigger-push" class="btn-ctrl" title="Cross-verify with registered device">
+                                    <span class="ctrl-icon">📱</span>
+                                    <span class="ctrl-lbl">Push Verify</span>
+                                </button>
+                                <button id="btn-mute-call" class="btn-ctrl" title="Mute microphone">
+                                    <span class="ctrl-icon">🎙️</span>
+                                    <span class="ctrl-lbl">Mute</span>
+                                </button>
+                                <button id="btn-block-call" class="btn-ctrl btn-block" title="Flag and Block Immediately">
+                                    <span class="ctrl-icon">🚨</span>
+                                    <span class="ctrl-lbl">Block</span>
+                                </button>
+                                <button id="btn-end-call" class="btn-ctrl btn-hangup" title="End Call">
+                                    <span class="ctrl-icon">📞</span>
+                                    <span class="ctrl-lbl">End Call</span>
+                                </button>
+                            </div>
+
+                        </div>
+                    </section>
+
+                    <!-- SCREEN 3: TRUSTED CIRCLE -->
+                    <section id="screen-trusted-circle" class="mobile-screen">
+                        <div class="screen-content">
+                            <div class="screen-header-row">
+                                <h3>Trusted Circle</h3>
+                                <button id="btn-enroll-contact" class="btn btn-sm btn-primary">+ Enroll Voice</button>
+                            </div>
+                            <p class="section-subtext">Manage enrolled biometric voiceprints. Voice vectors are stored with 256-bit encryption and never shared.</p>
+                            
+                            <div id="trusted-circle-list" class="trusted-circle-list">
+                                <!-- Enrolled contacts injected dynamically by app.js -->
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- SCREEN 4: INCIDENT CENTER -->
+                    <section id="screen-incidents" class="mobile-screen">
+                        <div class="screen-content">
+                            <div class="screen-header-row">
+                                <h3>Incident Center</h3>
+                                <span class="badge-pill active">Auto-TTL Active</span>
+                            </div>
+                            <p class="section-subtext">Forensic audit logs of flagged and blocked deepfake impersonation attempts. Data minimized per DPDP Act 2023.</p>
+
+                            <div id="incidents-list" class="incidents-list">
+                                <!-- Incident logs injected dynamically by app.js -->
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- SCREEN 5: SETTINGS -->
+                    <section id="screen-settings" class="mobile-screen">
+                        <div class="screen-content">
+                            <h3>Settings & Privacy</h3>
+                            <div class="settings-group">
+                                <div class="settings-item">
+                                    <div>
+                                        <div class="settings-title">DPDP Act 2023 Consent Flow</div>
+                                        <div class="settings-sub">Show disclosure screen before call audio capture</div>
+                                    </div>
+                                    <input type="checkbox" checked class="toggle-switch">
+                                </div>
+                                <div class="settings-item">
+                                    <div>
+                                        <div class="settings-title">Data Minimization</div>
+                                        <div class="settings-sub">Discard raw audio immediately post-inference</div>
+                                    </div>
+                                    <input type="checkbox" checked disabled class="toggle-switch">
+                                </div>
+                                <div class="settings-item">
+                                    <div>
+                                        <div class="settings-title">AASIST Anti-Spoof Sensitivity</div>
+                                        <div class="settings-sub">Detection threshold for neural TTS / voice clones</div>
+                                    </div>
+                                    <span class="range-val">70%</span>
+                                </div>
+                                <div class="settings-item">
+                                    <div>
+                                        <div class="settings-title">Audit Log TTL Retention</div>
+                                        <div class="settings-sub">Automatic purge of forensic metadata</div>
+                                    </div>
+                                    <span class="range-val">30 Days</span>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Mobile Bottom Navigation Bar -->
+                    <nav class="mobile-bottom-nav">
+                        <button class="nav-btn active" data-screen="dashboard">
+                            <span class="nav-icon">🏠</span>
+                            <span class="nav-label">Dashboard</span>
+                        </button>
+                        <button class="nav-btn" data-screen="live-call">
+                            <span class="nav-icon">🛡️</span>
+                            <span class="nav-label">Live Call</span>
+                        </button>
+                        <button class="nav-btn" data-screen="trusted-circle">
+                            <span class="nav-icon">👥</span>
+                            <span class="nav-label">Circle</span>
+                        </button>
+                        <button class="nav-btn" data-screen="incidents">
+                            <span class="nav-icon">📋</span>
+                            <span class="nav-label">Incidents</span>
+                        </button>
+                        <button class="nav-btn" data-screen="settings">
+                            <span class="nav-icon">⚙️</span>
+                            <span class="nav-label">Settings</span>
+                        </button>
+                    </nav>
+
+                </div>
+            </div>
+
+            <!-- RIGHT: Enterprise Security Operations Center (SOC) Command Console -->
+            <div class="soc-dashboard-wrapper">
+                <div class="soc-header">
+                    <div class="soc-title">
+                        <span class="soc-badge">SOC COMMAND CONSOLE</span>
+                        <h2>Real-Time Deepfake Detection & Telemetry Engine</h2>
+                    </div>
+                    <div class="soc-meta">
+                        <span>MODEL PIPELINE: AASIST • ECAPA-TDNN • SILERO-VAD • WHISPER</span>
+                    </div>
+                </div>
+
+                <div class="soc-grid">
+                    
+                    <!-- Frequency Spectrum Canvas -->
+                    <div class="soc-card spectrum-card">
+                        <div class="soc-card-title">
+                            <span>AUDIO FREQUENCY SPECTRUM (32-BAND FFT)</span>
+                            <span class="live-dot">LIVE</span>
+                        </div>
+                        <canvas id="soc-spectrum-canvas" width="480" height="120"></canvas>
+                        <div class="spectrum-legend">
+                            <span>0 Hz (Bass)</span>
+                            <span>1 kHz (Telephone Vowels)</span>
+                            <span>3.4 kHz (GSM High Cut)</span>
+                            <span>8 kHz (AASIST Anomaly Zone)</span>
+                        </div>
+                    </div>
+
+                    <!-- Oscilloscope High-Res Waveform -->
+                    <div class="soc-card waveform-card">
+                        <div class="soc-card-title">
+                            <span>TIME-DOMAIN PCM WAVEFORM DYNAMICS</span>
+                            <span class="sample-rate">44.1 kHz / 16-BIT</span>
+                        </div>
+                        <canvas id="soc-oscilloscope-canvas" width="480" height="100"></canvas>
+                    </div>
+
+                    <!-- Model Metric Gauges -->
+                    <div class="soc-card metrics-card">
+                        <div class="soc-card-title">
+                            <span>MULTI-LAYER MODEL INFERENCE CONFIDENCE</span>
+                        </div>
+                        
+                        <div class="metric-row">
+                            <div class="metric-info">
+                                <span class="metric-name">AASIST Anti-Spoof (Synthetic Score)</span>
+                                <span id="soc-aasist-score" class="metric-num">3.5%</span>
+                            </div>
+                            <div class="progress-bar-bg">
+                                <div id="soc-aasist-bar" class="progress-bar-fill fill-red" style="width: 3.5%;"></div>
+                            </div>
+                        </div>
+
+                        <div class="metric-row">
+                            <div class="metric-info">
+                                <span class="metric-name">ECAPA-TDNN Speaker Similarity</span>
+                                <span id="soc-speaker-score" class="metric-num">94.2%</span>
+                            </div>
+                            <div class="progress-bar-bg">
+                                <div id="soc-speaker-bar" class="progress-bar-fill fill-green" style="width: 94.2%;"></div>
+                            </div>
+                        </div>
+
+                        <div class="metric-row">
+                            <div class="metric-info">
+                                <span class="metric-name">Silero-VAD Liveness / Regularity</span>
+                                <span id="soc-replay-score" class="metric-num">95% Liveness</span>
+                            </div>
+                            <div class="progress-bar-bg">
+                                <div class="progress-bar-fill fill-cyan" style="width: 95%;"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Live SOC Transcript & NLP Entity Scanner -->
+                    <div class="soc-card transcript-card">
+                        <div class="soc-card-title">
+                            <span>WHISPER REAL-TIME ASR & SENSITIVE ENTITY EXTRACTOR</span>
+                            <span class="nlp-badge">NLP GUARD ACTIVE</span>
+                        </div>
+                        <div id="soc-transcript-stream" class="soc-transcript-stream">
+                            <div class="soc-line system">=== VOXSHIELD SECURE SESSION ESTABLISHED ===</div>
+                        </div>
+                        <div class="soc-entity-tags">
+                            <span class="entity-tag">Financial Extortion</span>
+                            <span class="entity-tag">OTP Harvesting</span>
+                            <span class="entity-tag">Emergency Wire</span>
+                            <span class="entity-tag">Voiceprint Drift</span>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+        </main>
+
+        <!-- Dynamic Voice Challenge Modal (Section 4, Step 9) -->
+        <div id="challenge-modal" class="modal-overlay hidden">
+            <div class="modal-box challenge-box">
+                <div class="modal-header">
+                    <span class="modal-icon">🎲</span>
+                    <h3>Dynamic Voice Challenge</h3>
+                </div>
+                <p class="modal-desc">A random phrase has been generated at runtime. The caller must repeat it aloud to verify biometric liveness.</p>
+                
+                <div class="challenge-phrase-card">
+                    <span class="phrase-label">CHALLENGE PHRASE TO REPEAT:</span>
+                    <div id="challenge-phrase-display" class="challenge-phrase">"Blue Tiger 47"</div>
+                </div>
+
+                <div id="challenge-status-text" class="challenge-status">
+                    Listening for caller voice response...
+                </div>
+
+                <div class="modal-actions">
+                    <button id="btn-challenge-listen" class="btn btn-sm btn-outline">🎙️ Speak into Mic</button>
+                    <button id="btn-challenge-pass" class="btn btn-sm btn-success">✅ Simulate Match (Pass)</button>
+                    <button id="btn-challenge-fail" class="btn btn-sm btn-danger">❌ Simulate Mismatch (Fail)</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Enroll New Voiceprint Modal -->
+        <div id="enroll-modal" class="modal-overlay hidden">
+            <div class="modal-box enroll-box">
+                <div class="modal-header">
+                    <span class="modal-icon">🎙️</span>
+                    <h3>Enroll Trusted Contact Voiceprint</h3>
+                </div>
+                <p class="modal-desc">Register a family member or corporate officer. Voice vectors are stored securely with AES-256 encryption.</p>
+
+                <div class="form-group">
+                    <label>Full Name</label>
+                    <input type="text" id="enroll-name" placeholder="e.g., Vikram Sharma" class="form-input">
+                </div>
+
+                <div class="form-group">
+                    <label>Phone Number</label>
+                    <input type="text" id="enroll-phone" placeholder="+91 98765 00000" class="form-input">
+                </div>
+
+                <div class="form-group">
+                    <label>Relationship / Role</label>
+                    <input type="text" id="enroll-relation" placeholder="e.g., Father / Executive" class="form-input">
+                </div>
+
+                <div class="enroll-audio-sample">
+                    <span class="sample-label">Voice Sample Enrollment:</span>
+                    <div class="sample-btn-box">
+                        <button class="btn btn-sm btn-outline" onclick="alert('Recording 5s biometric audio sample for voiceprint feature extraction...')">🔴 Record 5-Second Voice Sample</button>
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button id="btn-save-enrollment" class="btn btn-primary">Save & Encrypt Voiceprint</button>
+                    <button id="btn-close-enroll-modal" class="btn btn-ghost">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Scripts -->
+    <script src="scenarios.js"></script>
+    <script src="audio-engine.js"></script>
+    <script src="detection-engine.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
