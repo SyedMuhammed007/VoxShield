@@ -19,71 +19,9 @@ class VoxShieldApp {
  this.isSocExpanded = true;
  this.hasConsent = true;
 
- // In-memory data collections
- this.trustedCircle = [
- {
- id: "tc_01",
- name: "Sarah Miller",
- relation: "Sister / Emergency Contact",
- phone: "+91 98765 43210",
- voiceprint_id: "vp_aes256_sarah_091",
- enrolled_at: "Aug 15, 2026",
- f0_mean: "218 Hz",
- status: "Active",
- avatar: "SM"
- },
- {
- id: "tc_02",
- name: "David Chen",
- relation: "CFO / Business Partner",
- phone: "+91 91234 56789",
- voiceprint_id: "vp_aes256_david_482",
- enrolled_at: "Aug 20, 2026",
- f0_mean: "132 Hz",
- status: "Active",
- avatar: ""
- },
- {
- id: "tc_03",
- name: "Elena Rostova",
- relation: "VP Engineering",
- phone: "+91 99887 76655",
- voiceprint_id: "vp_aes256_elena_103",
- enrolled_at: "Sep 01, 2026",
- f0_mean: "195 Hz",
- status: "Active",
- avatar: ""
- }
- ];
-
- this.incidents = [
- {
- id: "INC-2026-9014",
- timestamp: "Sep 10, 2026 - 18:42",
- caller_id: "+91 91234 56789 (Spoofed David Chen)",
- target_contact: "David Chen",
- attack_type: "AI Voice Clone (AASIST 98.4% Confidence)",
- context_flag: "Urgent Wire Transfer (INR 1,50,000)",
- decision: "IMPERSONATION DETECTED",
- prevention_action: "High-Stakes Call Flagged + Blocked",
- challenge_result: "Failed / Refused",
- trusted_channel_response: "Rejected by Owner via Push",
- retention_ttl: "29 days remaining (DPDP Act 2023 Compliant)"
- },
- {
- id: "INC-2026-8841",
- timestamp: "Sep 08, 2026 - 11:20",
- caller_id: "+91 98000 11223 (Unknown / Spoofed)",
- target_contact: "Unknown Bank Rep",
- attack_type: "Pre-recorded Audio Replay Attack (Silero VAD)",
- context_flag: "OTP & Account Credential Phishing",
- decision: "IMPERSONATION DETECTED",
- prevention_action: "Sensitive Action Restricted",
- challenge_result: "Failed (Acoustic loop mismatch)",
- trusted_channel_response: "N/A",
- retention_ttl: "27 days remaining (DPDP Act 2023 Compliant)"
- }
- ];
+        // Persistent Local Database Collections (Syncs with browser localStorage per DPDP Act 2023)
+        this.trustedCircle = this.loadTrustedCircle();
+        this.incidents = this.loadIncidents();
 
  this.initDOM();
  this.initWebSocket();

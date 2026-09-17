@@ -470,6 +470,37 @@
                                     <span class="setting-val-tag">365 Days</span>
                                 </div>
                             </div>
+                                                    <!-- Group 4: Local Database & Storage -->
+                            <div class="mobile-settings-group">
+                                <span class="settings-group-label">LOCAL DATABASE & STORAGE</span>
+                                <div class="settings-item-row">
+                                    <div class="setting-text">
+                                        <span class="setting-title">Persistent Engine</span>
+                                        <span class="setting-desc">Browser LocalStorage + AES-256 Vector Vault</span>
+                                    </div>
+                                    <span class="status-badge-green" id="db-status-badge">CONNECTED</span>
+                                </div>
+                                <div class="settings-item-row">
+                                    <div class="setting-text">
+                                        <span class="setting-title">Enrolled Contacts Stored</span>
+                                        <span class="setting-desc">Encrypted voiceprint profiles</span>
+                                    </div>
+                                    <span class="setting-val-tag" id="db-contacts-count">3 Contacts</span>
+                                </div>
+                                <div class="settings-item-row">
+                                    <div class="setting-text">
+                                        <span class="setting-title">Forensic Incidents Logged</span>
+                                        <span class="setting-desc">Total threats recorded locally</span>
+                                    </div>
+                                    <span class="setting-val-tag" id="db-incidents-count">2 Incidents</span>
+                                </div>
+                                <div class="settings-item-row flex-column-item" style="gap: 8px;">
+                                    <div style="display: flex; gap: 8px; width: 100%;">
+                                        <button id="btn-clear-incidents" class="btn-secondary" style="flex: 1; padding: 7px 10px; font-size: 11px; cursor: pointer; border-radius: 6px;">Clear Incidents</button>
+                                        <button id="btn-reset-db" class="btn-secondary" style="flex: 1; padding: 7px 10px; font-size: 11px; cursor: pointer; border-radius: 6px;">Reset Demo Data</button>
+                                    </div>
+                                </div>
+                            </div>
                         </section>
                     </div>
 
