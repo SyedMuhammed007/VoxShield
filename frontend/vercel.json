@@ -1,0 +1,35 @@
+{
+  "version": 2,
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "routes": [
+    {
+      "src": "/style.css",
+      "dest": "/style.css"
+    },
+    {
+      "src": "/app.js",
+      "dest": "/app.js"
+    },
+    {
+      "src": "/i18n.js",
+      "dest": "/i18n.js"
+    },
+    {
+      "src": "/scenarios.js",
+      "dest": "/scenarios.js"
+    },
+    {
+      "src": "/audio-engine.js",
+      "dest": "/audio-engine.js"
+    },
+    {
+      "src": "/detection-engine.js",
+      "dest": "/detection-engine.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ]
+}
