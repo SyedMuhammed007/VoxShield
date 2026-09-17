@@ -26,6 +26,8 @@ class VoxShieldApp {
  this.initDOM();
  this.initWebSocket();
  this.setupAudioListeners();
+        window.voxApp = this;
+        window.app = this;
  }
 
  initDOM() {
@@ -80,6 +82,7 @@ class VoxShieldApp {
         };
 
         document.getElementById("btn-theme-toggle")?.addEventListener("click", handleThemeToggle);
+        document.getElementById("btn-theme-toggle-mobile")?.addEventListener("click", handleThemeToggle);
         document.getElementById("btn-theme-toggle-settings")?.addEventListener("click", handleThemeToggle);
 
  // Navigation buttons
@@ -731,7 +734,167 @@ class VoxShieldApp {
  }
 
  // --- Trusted Circle Render & Enrollment ---
- renderTrustedCircle() {
+ // --- Local Database & Storage Management ---
+    loadTrustedCircle() {
+        try {
+            const raw = localStorage.getItem("vox_trusted_circle");
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            }
+        } catch (e) {
+            console.warn("[VoxShield] Error reading trusted circle from storage:", e);
+        }
+        const defaultList = [
+            {
+                id: "tc_01",
+                name: "Sarah Miller",
+                relation: "Sister / Emergency Contact",
+                phone: "+91 98765 43210",
+                voiceprint_id: "vp_aes256_sarah_091",
+                enrolled_at: "Aug 15, 2026",
+                f0_mean: "218 Hz",
+                status: "Active",
+                avatar: "SM"
+            },
+            {
+                id: "tc_02",
+                name: "David Chen",
+                relation: "CFO / Business Partner",
+                phone: "+91 91234 56789",
+                voiceprint_id: "vp_aes256_david_482",
+                enrolled_at: "Aug 20, 2026",
+                f0_mean: "132 Hz",
+                status: "Active",
+                avatar: "DC"
+            },
+            {
+                id: "tc_03",
+                name: "Elena Rostova",
+                relation: "VP Engineering",
+                phone: "+91 99887 76655",
+                voiceprint_id: "vp_aes256_elena_103",
+                enrolled_at: "Sep 01, 2026",
+                f0_mean: "195 Hz",
+                status: "Active",
+                avatar: "ER"
+            }
+        ];
+        this.saveTrustedCircle(defaultList);
+        return defaultList;
+    }
+
+    saveTrustedCircle(list = null) {
+        const data = list || this.trustedCircle;
+        try {
+            localStorage.setItem("vox_trusted_circle", JSON.stringify(data));
+        } catch (e) {
+            console.warn("[VoxShield] Error saving trusted circle to storage:", e);
+        }
+        this.updateDbStats();
+    }
+
+    loadIncidents() {
+        try {
+            const raw = localStorage.getItem("vox_incidents");
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) return parsed;
+            }
+        } catch (e) {
+            console.warn("[VoxShield] Error reading incidents from storage:", e);
+        }
+        const defaultIncidents = [
+            {
+                id: "INC-2026-9014",
+                timestamp: "Sep 10, 2026 - 18:42",
+                caller_id: "+91 91234 56789 (Spoofed David Chen)",
+                target_contact: "David Chen",
+                attack_type: "AI Voice Clone (AASIST 98.4% Confidence)",
+                context_flag: "Urgent Wire Transfer (INR 1,50,000)",
+                decision: "IMPERSONATION DETECTED",
+                prevention_action: "High-Stakes Call Flagged + Blocked",
+                challenge_result: "Failed / Refused",
+                trusted_channel_response: "Rejected by Owner via Push",
+                retention_ttl: "29 days remaining (DPDP Act 2023 Compliant)"
+            },
+            {
+                id: "INC-2026-8841",
+                timestamp: "Sep 08, 2026 - 11:20",
+                caller_id: "+91 98000 11223 (Unknown / Spoofed)",
+                target_contact: "Unknown Bank Rep",
+                attack_type: "Pre-recorded Audio Replay Attack (Silero VAD)",
+                context_flag: "OTP & Account Credential Phishing",
+                decision: "IMPERSONATION DETECTED",
+                prevention_action: "Sensitive Action Restricted",
+                challenge_result: "Failed (Acoustic loop mismatch)",
+                trusted_channel_response: "N/A",
+                retention_ttl: "27 days remaining (DPDP Act 2023 Compliant)"
+            }
+        ];
+        this.saveIncidents(defaultIncidents);
+        return defaultIncidents;
+    }
+
+    saveIncidents(list = null) {
+        const data = list || this.incidents;
+        try {
+            localStorage.setItem("vox_incidents", JSON.stringify(data));
+        } catch (e) {
+            console.warn("[VoxShield] Error saving incidents to storage:", e);
+        }
+        this.updateDbStats();
+    }
+
+    updateDbStats() {
+        const contactsBadge = document.getElementById("db-contacts-count");
+        if (contactsBadge) {
+            const count = (this.trustedCircle && this.trustedCircle.length) || 0;
+            contactsBadge.textContent = `${count} Contacts`;
+        }
+        const incidentsBadge = document.getElementById("db-incidents-count");
+        if (incidentsBadge) {
+            const count = (this.incidents && this.incidents.length) || 0;
+            incidentsBadge.textContent = `${count} Incidents`;
+        }
+    }
+
+    deleteContact(id) {
+        if (confirm("Remove this contact and delete their encrypted voiceprint from storage?")) {
+            this.trustedCircle = this.trustedCircle.filter(c => c.id !== id);
+            this.saveTrustedCircle();
+            this.renderTrustedCircle();
+        }
+    }
+
+    deleteIncident(id) {
+        this.incidents = this.incidents.filter(inc => inc.id !== id);
+        this.saveIncidents();
+        this.renderIncidents();
+    }
+
+    clearAllIncidents() {
+        if (confirm("Are you sure you want to clear all forensic incident logs from storage?")) {
+            this.incidents = [];
+            this.saveIncidents();
+            this.renderIncidents();
+        }
+    }
+
+    resetDemoData() {
+        if (confirm("Reset Trusted Circle and Incident Ledger back to baseline factory demo data?")) {
+            localStorage.removeItem("vox_trusted_circle");
+            localStorage.removeItem("vox_incidents");
+            this.trustedCircle = this.loadTrustedCircle();
+            this.incidents = this.loadIncidents();
+            this.renderTrustedCircle();
+            this.renderIncidents();
+            this.updateDbStats();
+            alert("Database reset to factory demo baseline successfully.");
+        }
+    }
+
+    renderTrustedCircle() {
  const container = document.getElementById("trusted-circle-list");
  if (!container) return;
 

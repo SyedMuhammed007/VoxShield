@@ -104,9 +104,16 @@
                                         <h1 class="mobile-header-title" data-i18n="header_title">VoxShield Guard</h1>
                                         <p class="mobile-header-sub" data-i18n="header_sub">Biometric Call Protection is Active</p>
                                     </div>
-                                    <div class="protection-switch-ui">
-                                        <div class="ios-switch active">
-                                            <div class="switch-thumb"></div>
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <button id="btn-theme-toggle-mobile" class="mobile-theme-pill-btn" title="Toggle Light/Dark Theme" style="background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-main); border-radius: 20px; padding: 5px 10px; font-size: 11px; display: flex; align-items: center; gap: 5px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.08); font-family: inherit;">
+                                            <span class="icon-sun">☀️</span>
+                                            <span class="icon-moon" style="display: none;">🌙</span>
+                                            <span id="mobile-theme-text" style="font-weight: 600;">Light</span>
+                                        </button>
+                                        <div class="protection-switch-ui">
+                                            <div class="ios-switch active">
+                                                <div class="switch-thumb"></div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
