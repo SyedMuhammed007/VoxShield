@@ -197,11 +197,11 @@ class VoxShieldApp {
     }
 
     setupAudioListeners() {
-        // Autonomous Multi-Language Speech Recognition & English Translation Callback (Sections 2, 3, 6, 8)
+        // Autonomous Multi-Language Speech Recognition & Latin Transliteration Callback (Sections 2, 3, 5, 20)
         this.audioEngine.onTranscriptCallback = (segmentData) => {
             if (typeof segmentData === "object" && segmentData !== null) {
-                const englishText = segmentData.englishText || segmentData.text;
-                this.detectionEngine.processTranscript(englishText, segmentData.isFinal);
+                const latinText = segmentData.transliteratedText || segmentData.text;
+                this.detectionEngine.processTranscript(latinText, segmentData.isFinal);
                 this.addTranscriptSegment(segmentData);
             } else {
                 const rawText = String(segmentData);
@@ -746,7 +746,7 @@ class VoxShieldApp {
 
         let html = "";
         this.finalTranscriptSegments.forEach(seg => {
-            const displayText = seg.englishText || seg.text;
+            const displayText = seg.transliteratedText || seg.text;
             let safeText = displayText.replace(/</g, "&lt;").replace(/>/g, "&gt;");
             safeText = safeText.replace(highlightRegex, `<mark class="threat-keyword">$1</mark>`);
             const isUser = seg.speaker === "YOU";
@@ -764,7 +764,7 @@ class VoxShieldApp {
         });
 
         if (this.interimTranscript) {
-            const displayInterim = this.interimTranscript.englishText || this.interimTranscript.text;
+            const displayInterim = this.interimTranscript.transliteratedText || this.interimTranscript.text;
             let safeInterim = displayInterim.replace(/</g, "&lt;").replace(/>/g, "&gt;");
             safeInterim = safeInterim.replace(highlightRegex, `<mark class="threat-keyword">$1</mark>`);
             const isUser = this.interimTranscript.speaker === "YOU";

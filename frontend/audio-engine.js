@@ -3,12 +3,13 @@
  * Handles real-time Web Audio API signal processing, synthetic/natural voice playback,
  * multi-lingual live microphone streaming, frequency spectrum analysis, and sound effects.
  * 
- * AUTOMATIC MULTI-LANGUAGE DETECTION & REAL-TIME ENGLISH TRANSLATION LAYER:
+ * AUTOMATIC MULTI-LANGUAGE DETECTION & LATIN/ENGLISH-LETTER TRANSLITERATION:
  * - Autonomous Language Identification across English, Hindi, Tamil, and Telugu (zero manual selection).
  * - Preserves the reference working Hindi pipeline ('hi-IN') and adaptively routes speech recognition.
- * - Translates all recognized speech into natural conversational English in real time.
+ * - TRANSLITERATES the original spoken words into English/Latin letters (NO TRANSLATION).
+ *   E.g., "कैसे हो?" -> "Kaise ho?", "எப்படி இருக்க?" -> "Eppadi iruka?", "ఎలా ఉన్నావు?" -> "Ela unnava?"
  * - Stores detected language, confidence, and original native text internally for security analysis.
- * - Clean UI output: Displays pure English transcript without cluttering language badges.
+ * - Clean UI output: Displays transliterated speech in Latin script without cluttering language badges.
  * - Dual-pipeline isolation: Voice analysis (AASIST, ECAPA, Liveness, Replay) operates concurrently on the raw audio stream.
  */
 
@@ -43,99 +44,123 @@ if (typeof window !== "undefined") {
     window.TRANSCRIPTION_LANGUAGES = TRANSCRIPTION_LANGUAGES;
 }
 
-// Local conversational & security vocabulary dictionary (Offline Fallback)
-const OFFLINE_TRANSLATION_DICT = {
-    // Tamil Conversational & Security
-    "வணக்கம்": "Hello",
-    "நீங்கள் எப்படி இருக்கிறீர்கள்": "How are you?",
-    "நீங்கள் எப்படி இருக்கிறீர்கள்?": "How are you?",
-    "எப்படி இருக்கிறீர்கள்": "How are you?",
-    "எப்படி இருக்கீங்க": "How are you?",
-    "நலமா": "Are you doing well?",
-    "நன்றி": "Thank you",
-    "ரொம்ப நன்றி": "Thank you very much",
-    "காப்பாற்றுங்கள்": "Please help me",
-    "உதவி": "Help",
-    "பணம்": "Money",
-    "பணம் அனுப்புங்கள்": "Please send money",
-    "ரூபாய்": "Rupees",
-    "கடவுச்சொல்": "Password",
-    "ஓடிபி": "OTP",
-    "எமர்ஜென்சி": "Emergency",
-    "அவசரம்": "Urgent emergency",
-    "வங்கி": "Bank",
-    "கணக்கு": "Account",
-    "சரி": "Okay",
-    "நான் பேசுகிறேன்": "I am speaking",
-    "நீங்கள் யார்": "Who are you?",
-    "நீங்கள் சொல்வது புரிகிறது": "I understand what you are saying",
-    "என் குரல் கேட்கிறதா": "Can you hear my voice?",
-    "vanakkam": "Hello",
-    "epdi irukeenga": "How are you?",
-    "epdi irukinga": "How are you?",
-    "nandri": "Thank you",
-    "romba nandri": "Thank you very much",
-    "panam": "Money",
+// Deterministic Indic-to-Latin Unicode Transliterator (100% Offline High-Speed Fallback)
+const IndicTransliterator = {
+    devanagari: {
+        vowels: {
+            'अ':'a','आ':'aa','इ':'i','ई':'ee','उ':'u','ऊ':'oo','ऋ':'ri','ए':'e','ऐ':'ai','ओ':'o','औ':'au','अं':'an','अः':'ah'
+        },
+        matras: {
+            'ा':'a','ि':'i','ी':'ee','ु':'u','ू':'oo','ृ':'ri','े':'e','ै':'ai','ो':'o','ौ':'au','ं':'n','ः':'h','्':''
+        },
+        consonants: {
+            'क':'k','ख':'kh','ग':'g','घ':'gh','ङ':'ng',
+            'च':'ch','छ':'chh','ज':'j','झ':'jh','ञ':'ny',
+            'ट':'t','ठ':'th','ड':'d','ढ':'dh','ण':'n',
+            'त':'t','थ':'th','द':'d','ध':'dh','न':'n',
+            'प':'p','फ':'ph','ब':'b','भ':'bh','म':'m',
+            'य':'y','र':'r','ल':'l','व':'v','श':'sh','ष':'sh','स':'s','ह':'h',
+            'ड़':'r','ढ़':'rh','ज़':'z','फ़':'f','क़':'q','ख़':'kh','ग़':'gh'
+        }
+    },
+    tamil: {
+        vowels: {
+            'அ':'a','ஆ':'aa','இ':'i','ஈ':'ee','உ':'u','ஊ':'oo','எ':'e','ஏ':'ae','ஐ':'ai','ஒ':'o','ஓ':'oe','ஔ':'au','ஃ':'k'
+        },
+        matras: {
+            'ா':'aa','ி':'i','ீ':'ee','ு':'u','ூ':'oo','ெ':'e','ே':'ae','ை':'ai','ொ':'o','ோ':'oe','ௌ':'au','்':''
+        },
+        consonants: {
+            'க':'k','ங':'ng','ச':'s','ஞ':'ny','ட':'t','ண':'n','த':'th','ந':'n','ப':'p','ம':'m','ய':'y','ர':'r','ல':'l','வ':'v','ழ':'zh','ள':'l','ற':'r','ன':'n'
+        }
+    },
+    telugu: {
+        vowels: {
+            'అ':'a','ఆ':'aa','ఇ':'i','ఈ':'ee','ఉ':'u','ఊ':'oo','ఋ':'ru','ఎ':'e','ఏ':'ae','ఐ':'ai','ఒ':'o','ఓ':'oe','ఔ':'au','అం':'am','అః':'aha'
+        },
+        matras: {
+            'ా':'aa','ి':'i','ీ':'ee','ు':'u','ూ':'oo','ృ':'ru','ె':'e','ే':'ae','ై':'ai','ొ':'o','ో':'oe','ౌ':'au','ం':'m','ః':'h','్':''
+        },
+        consonants: {
+            'క':'k','ఖ':'kh','గ':'g','ఘ':'gh','ఙ':'ng',
+            'చ':'ch','ఛ':'chh','జ':'j','ఝ':'jh','ఞ':'ny',
+            'ట':'t','ఠ':'th','డ':'d','ఢ':'dh','ణ':'n',
+            'త':'th','థ':'th','ద':'d','ధ':'dh','న':'n',
+            'ప':'p','ఫ':'ph','బ':'b','భ':'bh','మ':'m',
+            'య':'y','ర':'r','ల':'l','వ':'v','శ':'sh','ష':'sh','స':'s','హ':'h','ళ':'l'
+        }
+    },
 
-    // Hindi Conversational & Security
-    "नमस्ते": "Hello",
-    "नमस्कार": "Hello",
-    "आप कैसे हैं": "How are you?",
-    "आप कैसे हैं?": "How are you?",
-    "सब ठीक है": "Everything is fine",
-    "सब ठीक है?": "Is everything fine?",
-    "आप अभी कहाँ हैं": "Where are you now?",
-    "आप अभी कहाँ हैं?": "Where are you now?",
-    "धन्यवाद": "Thank you",
-    "शुक्रिया": "Thank you",
-    "मदद कीजिए": "Please help me",
-    "पैसे": "Money",
-    "पैसे भेजो": "Transfer the money",
-    "रुपये": "Rupees",
-    "ओटीपी": "OTP",
-    "पासवर्ड": "Password",
-    "बैंक": "Bank",
-    "खाता": "Account",
-    "इमरजेंसी": "Emergency",
-    "तुरंत": "Immediately",
-    "ठीक है": "Okay",
-    "हाँ": "Yes",
-    "नहीं": "No",
-    "सुनिए": "Listen",
-    "मेरी आवाज़ आ रही है": "Can you hear my voice?",
-    "क्या आप मुझे समझ सकते हैं": "Can you understand what I am saying?",
-    "namaste": "Hello",
-    "aap kaise ho": "How are you?",
-    "kaha ja rahe ho": "Where are you going?",
-    "shukriya": "Thank you",
-    "theek hai": "Okay",
+    transliterate(text) {
+        if (!text) return '';
+        let result = '';
+        const chars = Array.from(text);
+        for (let i = 0; i < chars.length; i++) {
+            const ch = chars[i];
+            const code = ch.charCodeAt(0);
 
-    // Telugu Conversational & Security
-    "నమస్కారం": "Hello",
-    "నమస్తే": "Hello",
-    "మీరు ఎలా ఉన్నారు": "How are you?",
-    "మీరు ఎలా ఉన్నారు?": "How are you?",
-    "బాగున్నారా": "Are you doing fine?",
-    "ధన్యవాదాలు": "Thank you",
-    "సహాయం చేయండి": "Please help me",
-    "డబ్బులు": "Money",
-    "డబ్బు పంపండి": "Send money",
-    "రూపాయలు": "Rupees",
-    "ఓటీపీ": "OTP",
-    "పాస్‌వర్డ్": "Password",
-    "బ్యాంకు": "Bank",
-    "ఖాతా": "Account",
-    "ఆపద": "Emergency",
-    "అత్యవసరం": "Urgent emergency",
-    "సరే": "Okay",
-    "చెప్పండి": "Tell me",
-    "మీరు నన్ను అర్థం చేసుకుంటున్నారా": "Can you understand what I am saying?",
-    "నా స్వరం వినబడుతుందా": "Can you hear my voice?",
-    "namaskaram": "Hello",
-    "meeru ela unnaru": "How are you?",
-    "bagunnara": "Are you fine?",
-    "dhanyavadalu": "Thank you",
-    "sare": "Okay"
+            // Devanagari (0x0900 - 0x097F)
+            if (code >= 0x0900 && code <= 0x097F) {
+                if (this.devanagari.vowels[ch]) {
+                    result += this.devanagari.vowels[ch];
+                } else if (this.devanagari.consonants[ch]) {
+                    const next = chars[i + 1];
+                    if (next && this.devanagari.matras[next] !== undefined) {
+                        result += this.devanagari.consonants[ch] + this.devanagari.matras[next];
+                        i++;
+                    } else {
+                        const isEnd = (i === chars.length - 1) || chars[i + 1] === ' ' || /[\s.,!?]/.test(chars[i + 1]);
+                        result += this.devanagari.consonants[ch] + (isEnd ? '' : 'a');
+                    }
+                } else if (this.devanagari.matras[ch]) {
+                    result += this.devanagari.matras[ch];
+                } else {
+                    result += ch;
+                }
+            }
+            // Tamil (0x0B80 - 0x0BFF)
+            else if (code >= 0x0B80 && code <= 0x0BFF) {
+                if (this.tamil.vowels[ch]) {
+                    result += this.tamil.vowels[ch];
+                } else if (this.tamil.consonants[ch]) {
+                    const next = chars[i + 1];
+                    if (next && this.tamil.matras[next] !== undefined) {
+                        result += this.tamil.consonants[ch] + this.tamil.matras[next];
+                        i++;
+                    } else {
+                        const isEnd = (i === chars.length - 1) || chars[i + 1] === ' ' || /[\s.,!?]/.test(chars[i + 1]);
+                        result += this.tamil.consonants[ch] + (isEnd ? '' : 'a');
+                    }
+                } else if (this.tamil.matras[ch]) {
+                    result += this.tamil.matras[ch];
+                } else {
+                    result += ch;
+                }
+            }
+            // Telugu (0x0C00 - 0x0C7F)
+            else if (code >= 0x0C00 && code <= 0x0C7F) {
+                if (this.telugu.vowels[ch]) {
+                    result += this.telugu.vowels[ch];
+                } else if (this.telugu.consonants[ch]) {
+                    const next = chars[i + 1];
+                    if (next && this.telugu.matras[next] !== undefined) {
+                        result += this.telugu.consonants[ch] + this.telugu.matras[next];
+                        i++;
+                    } else {
+                        const isEnd = (i === chars.length - 1) || chars[i + 1] === ' ' || /[\s.,!?]/.test(chars[i + 1]);
+                        result += this.telugu.consonants[ch] + (isEnd ? '' : 'a');
+                    }
+                } else if (this.telugu.matras[ch]) {
+                    result += this.telugu.matras[ch];
+                } else {
+                    result += ch;
+                }
+            } else {
+                result += ch;
+            }
+        }
+        return result;
+    }
 };
 
 class VoxAudioEngine {
@@ -191,7 +216,7 @@ class VoxAudioEngine {
             lastErrorMsg: null,
             detectedLanguage: "Auto (detecting)",
             detectionConfidence: "--",
-            translationStatus: "Active (Natural En)",
+            translationStatus: "Active (Latin Transliteration)",
             activeLanguage: "Auto (hi/ta/te/en)"
         };
 
@@ -259,103 +284,91 @@ class VoxAudioEngine {
     }
 
     /**
-     * Real-Time English Translation Layer (Section 3 & 8)
-     * Preserves meaning and context; outputs natural English.
+     * Real-Time Latin/English-Letter Transliteration Layer (Section 2, 3, 4, 5, 20)
+     * Preserves the EXACT spoken words and pronunciation, written using Latin/English characters.
+     * NO ENGLISH TRANSLATION.
      */
-    async translateToEnglish(text) {
+    async transliterateToLatin(text) {
         const trimmed = (text || "").trim();
         if (!trimmed) {
             return {
-                englishText: "",
+                transliteratedText: "",
                 detectedLanguage: "en",
                 detectedLangLabel: "English",
                 confidence: 0.95
             };
         }
 
-        // Fast path: Pure ASCII English without Indian lexical keywords
-        const isPureAscii = /^[\x00-\x7F]+$/.test(trimmed);
-        const hasIndianLexicon = /\b(vanakkam|epdi|irukinga|irukeenga|nandri|namaste|kaise|kya|bhai|kaha|namaskaram|ela|unnaru|bagunnara)\b/i.test(trimmed);
-
-        if (isPureAscii && !hasIndianLexicon) {
+        // If purely Latin characters without Indic characters, return as is (English stays unchanged)
+        if (!/[\u0900-\u097F\u0B80-\u0BFF\u0C00-\u0C7F]/.test(trimmed)) {
             return {
-                englishText: trimmed,
+                transliteratedText: trimmed,
                 detectedLanguage: "en",
                 detectedLangLabel: "English",
                 confidence: 0.98
             };
         }
 
-        // Primary: Real-time Neural Multilingual Translation (Google GTX endpoint)
+        // Identify language from script
+        let detectedLang = "hi";
+        if (/[\u0B80-\u0BFF]/.test(trimmed)) detectedLang = "ta";
+        else if (/[\u0C00-\u0C7F]/.test(trimmed)) detectedLang = "te";
+        else if (/[\u0900-\u097F]/.test(trimmed)) detectedLang = "hi";
+
+        const labelMap = { ta: "Tamil", hi: "Hindi", te: "Telugu", en: "English" };
+
+        // Primary: Real-time Neural Romanization (Google GTX dt=rm endpoint)
         try {
-            const url = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q=" + encodeURIComponent(trimmed);
+            const url = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=rm&q=" + encodeURIComponent(trimmed);
             const res = await fetch(url);
             if (res.ok) {
                 const data = await res.json();
-                const translated = (data[0] || []).map(seg => seg[0]).join("").trim();
-                const detectedCode = data[2] || "auto";
-                const labelMap = { ta: "Tamil", hi: "Hindi", te: "Telugu", en: "English" };
-                const detectedLabel = labelMap[detectedCode] || (detectedCode ? detectedCode.toUpperCase() : "Detected");
+                let romanized = "";
+                if (data[0] && Array.isArray(data[0])) {
+                    for (const item of data[0]) {
+                        if (Array.isArray(item) && item[3]) {
+                            romanized += (romanized ? " " : "") + item[3];
+                        }
+                    }
+                }
+                const detectedCode = data[2] || detectedLang;
+                const langLabel = labelMap[detectedCode] || (detectedCode ? detectedCode.toUpperCase() : "Detected");
 
-                if (translated) {
+                if (romanized && romanized.trim()) {
+                    let cleaned = romanized.trim();
+                    // Capitalize first character
+                    cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
                     return {
-                        englishText: translated,
+                        transliteratedText: cleaned,
                         detectedLanguage: detectedCode,
-                        detectedLangLabel: detectedLabel,
-                        confidence: 0.95
+                        detectedLangLabel: langLabel,
+                        confidence: 0.96
                     };
                 }
             }
         } catch (err) {
-            console.warn("[VoxAudioEngine] Neural translation endpoint unavailable, using offline fallback:", err);
+            console.warn("[VoxAudioEngine] Neural romanization endpoint unavailable, using offline Indic transliterator:", err);
         }
 
-        // Fallback: Local conversational & semantic dictionary
-        return this.translateLocally(trimmed);
+        // Fallback: Deterministic mathematical Indic-to-Latin transliteration
+        const fallbackText = IndicTransliterator.transliterate(trimmed);
+        const capitalizedFallback = fallbackText ? (fallbackText.charAt(0).toUpperCase() + fallbackText.slice(1)) : trimmed;
+        return {
+            transliteratedText: capitalizedFallback,
+            detectedLanguage: detectedLang,
+            detectedLangLabel: labelMap[detectedLang] || "Detected",
+            confidence: 0.92
+        };
     }
 
-    translateLocally(text) {
-        const trimmed = text.trim();
-        const det = this.detectLanguage(trimmed);
-
-        // Exact match in dictionary
-        if (OFFLINE_TRANSLATION_DICT[trimmed]) {
-            return {
-                englishText: OFFLINE_TRANSLATION_DICT[trimmed],
-                detectedLanguage: det.code,
-                detectedLangLabel: det.label,
-                confidence: det.confidence
-            };
-        }
-
-        // Lowercase check
-        const lower = trimmed.toLowerCase().replace(/[?!.,]/g, "").trim();
-        if (OFFLINE_TRANSLATION_DICT[lower]) {
-            return {
-                englishText: OFFLINE_TRANSLATION_DICT[lower],
-                detectedLanguage: det.code,
-                detectedLangLabel: det.label,
-                confidence: det.confidence
-            };
-        }
-
-        // Multi-word phrase matching
-        for (const [nativePhrase, englishTranslation] of Object.entries(OFFLINE_TRANSLATION_DICT)) {
-            if (trimmed.includes(nativePhrase)) {
-                return {
-                    englishText: englishTranslation,
-                    detectedLanguage: det.code,
-                    detectedLangLabel: det.label,
-                    confidence: 0.91
-                };
-            }
-        }
-
+    // Alias for backward compatibility
+    async translateToEnglish(text) {
+        const res = await this.transliterateToLatin(text);
         return {
-            englishText: trimmed,
-            detectedLanguage: det.code,
-            detectedLangLabel: det.label,
-            confidence: 0.88
+            englishText: res.transliteratedText,
+            detectedLanguage: res.detectedLanguage,
+            detectedLangLabel: res.detectedLangLabel,
+            confidence: res.confidence
         };
     }
 
@@ -404,7 +417,7 @@ class VoxAudioEngine {
                 await this.ctx.resume();
                 this.diagnostics.audioContextState = this.ctx.state;
             } catch(e) {
-                console.warn("[VoxAudioEngine] Context resume error:", e);
+                console.warn("[VoxAudioEngine] resumeContext error:", e);
             }
         }
         return this.ctx ? this.ctx.state : "uninitialized";
@@ -423,17 +436,8 @@ class VoxAudioEngine {
 
     // --- Live Microphone Audio & Speech-to-Text Pipeline (Sections 2, 6, 17) ---
     async startMicrophone() {
-        this.initContext();
+        await this.resumeContext();
         this.diagnostics.lastErrorMsg = null;
-
-        if (this.ctx && this.ctx.state === "suspended") {
-            try {
-                await this.ctx.resume();
-                this.diagnostics.audioContextState = this.ctx.state;
-            } catch(e) {
-                console.warn("[VoxAudioEngine] AudioContext resume failed:", e);
-            }
-        }
 
         try {
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -572,9 +576,9 @@ class VoxAudioEngine {
                     this.activeRecognitionLocale = langInfo.locale;
                 }
 
-                // 3. Multilingual Translation Layer to English (Section 3 & 8)
+                // 3. Latin/English-Letter Transliteration Layer (Section 2, 3, 5, 20)
                 if (finalChunkNative.trim()) {
-                    const transRes = await this.translateToEnglish(finalChunkNative.trim());
+                    const transRes = await this.transliterateToLatin(finalChunkNative.trim());
                     if (this.onTranscriptCallback) {
                         this.onTranscriptCallback({
                             id: "seg_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
@@ -582,8 +586,9 @@ class VoxAudioEngine {
                             detectedLanguage: transRes.detectedLanguage || langInfo.code,
                             detectedLangLabel: transRes.detectedLangLabel || langInfo.label,
                             originalText: finalChunkNative.trim(),
-                            englishText: transRes.englishText,
-                            text: transRes.englishText,
+                            transliteratedText: transRes.transliteratedText,
+                            text: transRes.transliteratedText, // Displayed in UI
+                            englishText: transRes.transliteratedText, // Compatibility
                             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
                             confidence: transRes.confidence || langInfo.confidence,
                             isFinal: true
@@ -591,7 +596,8 @@ class VoxAudioEngine {
                     }
                 } else if (interimNative.trim()) {
                     // Interim preview
-                    const localPreview = this.translateLocally(interimNative.trim());
+                    const fallbackLatin = IndicTransliterator.transliterate(interimNative.trim());
+                    const interimText = fallbackLatin || interimNative.trim();
                     if (this.onTranscriptCallback) {
                         this.onTranscriptCallback({
                             id: "interim",
@@ -599,8 +605,9 @@ class VoxAudioEngine {
                             detectedLanguage: langInfo.code,
                             detectedLangLabel: langInfo.label,
                             originalText: interimNative.trim(),
-                            englishText: localPreview.englishText,
-                            text: localPreview.englishText,
+                            transliteratedText: interimText,
+                            text: interimText,
+                            englishText: interimText,
                             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
                             confidence: langInfo.confidence,
                             isFinal: false
@@ -624,7 +631,6 @@ class VoxAudioEngine {
                     this.activeRecognitionLocale = "en-IN";
                 } else if (event.error === "no-speech") {
                     this.diagnostics.speechRecognitionStatus = "listening";
-                    // If user was speaking (VAD active) but no speech decoded, probe next Indian language locale
                     if (this.diagnostics.rmsLevel > 0.025) {
                         this.probeIndex = (this.probeIndex + 1) % this.candidateLocales.length;
                         this.activeRecognitionLocale = this.candidateLocales[this.probeIndex];
