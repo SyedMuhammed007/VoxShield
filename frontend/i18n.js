@@ -7,14 +7,14 @@
 
 window.VOX_TRANSLATIONS = {
     en: {
-        "app_title": "VoxShield Mobile",
-        "app_badge": "v3.4 Production",
-        "app_tagline": "Real-Time Mobile Voice Biometric Defense",
+        "app_title": "VoxShield",
+        "app_badge": "",
+        "app_tagline": "Real-Time Voice Biometric Firewall",
         "device_protected": "Device Protection Active",
         "soc_telemetry": "SOC Telemetry",
         "island_active": "VoxShield Active",
         "header_title": "VoxShield Guard",
-        "header_sub": "Biometric Call Protection is Active",
+        "header_sub": "Real-time call protection",
         "stat_clone_acc": "Clone Accuracy",
         "stat_latency": "Latency Cutoff",
         "stat_dpdp": "Zero Audio Stored",

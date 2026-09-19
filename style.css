@@ -2265,3 +2265,330 @@ body.dark-mode-active .lang-pill.active-lang {
     filter: drop-shadow(0 0 6px rgba(6, 182, 212, 0.6));
     color: var(--cyan);
 }
+
+
+/* =======================================================
+   PRODUCTION CYBERSECURITY UI OVERHAUL (VOXSHIELD)
+   ======================================================= */
+
+/* Topbar Brand Alignment */
+.topbar-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.app-icon-shield {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, rgba(6, 182, 212, 0.15), rgba(15, 23, 42, 0.6));
+    border: 1px solid rgba(6, 182, 212, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 10px rgba(6, 182, 212, 0.15);
+    flex-shrink: 0;
+}
+
+.app-brand-info {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 1px;
+}
+
+.app-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-main);
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+}
+
+.app-tagline {
+    font-size: 12px;
+    color: var(--text-dim);
+    font-weight: 400;
+    line-height: 1.2;
+}
+
+/* Mobile Header Layout */
+.mobile-app-header {
+    margin-bottom: 14px;
+}
+
+.header-user-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+}
+
+.mobile-header-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.mobile-header-text {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.mobile-header-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-main);
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    margin: 0;
+}
+
+.mobile-header-sub {
+    font-size: 12px;
+    color: var(--text-dim);
+    font-weight: 500;
+    margin-top: 2px;
+    line-height: 1.2;
+}
+
+.mobile-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+/* Production Call Protection Card */
+.protection-hero-card {
+    background: var(--ios-card);
+    border: 1px solid var(--ios-border);
+    border-radius: 16px;
+    padding: 16px 16px 14px;
+    box-shadow: var(--card-shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 14px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.2s ease;
+}
+
+.protection-hero-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.security-eyebrow {
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.9px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+}
+
+.shield-status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    padding: 3px 8px;
+    border-radius: 12px;
+}
+
+.status-live-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #10b981;
+    box-shadow: 0 0 6px rgba(16, 185, 129, 0.8);
+    animation: pulseDot 2s infinite ease-in-out;
+}
+
+@keyframes pulseDot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.85); }
+}
+
+.status-live-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: #10b981;
+    letter-spacing: 0.5px;
+}
+
+.protection-state-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.risk-state-cluster {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+}
+
+.risk-state-title {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+}
+
+.risk-state-score {
+    font-family: var(--font-mono);
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-dim);
+}
+
+.protection-explanation {
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--text-sub);
+    margin: 0;
+}
+
+/* 4 Evidence Signals Grid */
+.evidence-signals-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    padding-top: 10px;
+    border-top: 1px solid var(--ios-border);
+}
+
+.evidence-signal-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    background: var(--ios-card-highlight);
+    border: 1px solid var(--ios-border);
+    padding: 8px 6px;
+    border-radius: 10px;
+    text-align: center;
+}
+
+.evidence-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.evidence-val-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.signal-badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 6px;
+}
+
+.signal-badge.status-emerald {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+}
+
+.signal-badge.status-slate {
+    background: rgba(100, 116, 139, 0.15);
+    color: var(--text-main);
+}
+
+.signal-number {
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.analysis-status-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-top: 4px;
+}
+
+.analysis-pulse-bar {
+    display: flex;
+    gap: 3px;
+    align-items: center;
+}
+
+.pulse-segment {
+    width: 12px;
+    height: 3px;
+    background: var(--ios-border);
+    border-radius: 2px;
+}
+
+.pulse-segment.active {
+    background: #0ea5e9;
+    box-shadow: 0 0 4px rgba(14, 165, 233, 0.5);
+}
+
+.analysis-status-text {
+    font-size: 11px;
+    color: var(--text-dim);
+    font-weight: 500;
+}
+
+/* Mobile Viewport Optimization - Remove empty dead space */
+@media (max-width: 768px) {
+    .mobile-layout-container {
+        padding: 0;
+        width: 100%;
+        height: 100vh;
+        height: 100dvh;
+    }
+
+    .mobile-chassis {
+        width: 100%;
+        max-width: 480px;
+        margin: 0 auto;
+        height: 100vh;
+        height: 100dvh;
+        border-radius: 0;
+        padding: 0;
+        box-shadow: none;
+        border: none;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .mobile-screen-wrapper {
+        width: 100%;
+        height: 100%;
+        border-radius: 0;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .mobile-content-area {
+        flex: 1;
+        padding: 12px 16px 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .mobile-bottom-nav {
+        height: 68px;
+        padding: 6px 12px 10px;
+    }
+}
