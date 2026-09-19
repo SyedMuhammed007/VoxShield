@@ -338,27 +338,39 @@
                                     </div>
                                 </div>
 
-                                <!-- Five Live Defense Vectors Inset Deck -->
-                                <div class="mobile-defense-grid">
+                                <!-- Five Live Defense Vectors Inset Deck (Sections 1-6) -->
+                                <div class="mobile-defense-grid status-grid">
                                     <div class="defense-card">
                                         <span class="defense-label" data-i18n="call_status">CALL STATUS</span>
-                                        <div id="indicator-call-status" class="indicator-val status-gray">IDLE / READY</div>
+                                        <div id="indicator-call-status" class="indicator-val status-value status-gray single-metric">
+                                            <span class="status-badge-text">IDLE / READY</span>
+                                        </div>
                                     </div>
                                     <div class="defense-card">
                                         <span class="defense-label" data-i18n="synthesis">SYNTHESIS (AASIST)</span>
-                                        <div id="indicator-authenticity" class="indicator-val status-gray">NOMINAL</div>
+                                        <div id="indicator-authenticity" class="indicator-val status-value status-gray">
+                                            <span class="status-badge-text">NOMINAL</span>
+                                            <span class="status-badge-pct"></span>
+                                        </div>
                                     </div>
                                     <div class="defense-card">
                                         <span class="defense-label" data-i18n="speaker">SPEAKER (ECAPA)</span>
-                                        <div id="indicator-speaker" class="indicator-val status-gray">UNVERIFIED</div>
+                                        <div id="indicator-speaker" class="indicator-val status-value status-gray">
+                                            <span class="status-badge-text">UNVERIFIED</span>
+                                            <span class="status-badge-pct"></span>
+                                        </div>
                                     </div>
                                     <div class="defense-card">
                                         <span class="defense-label" data-i18n="replay">REPLAY DETECT</span>
-                                        <div id="indicator-replay" class="indicator-val status-gray">NOMINAL</div>
+                                        <div id="indicator-replay" class="indicator-val status-value status-gray single-metric">
+                                            <span class="status-badge-text">NOMINAL</span>
+                                        </div>
                                     </div>
                                     <div class="defense-card full-span">
                                         <span class="defense-label" data-i18n="semantic_vector">SEMANTIC COERCION VECTOR</span>
-                                        <div id="indicator-context" class="indicator-val status-gray">NEUTRAL</div>
+                                        <div id="indicator-context" class="indicator-val status-value status-gray single-metric">
+                                            <span class="status-badge-text">NEUTRAL</span>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -377,10 +389,55 @@
                                 <div class="mobile-transcript-card">
                                     <div class="transcript-head">
                                         <span class="transcript-title">LIVE SPEECH TRANSCRIPT</span>
-                                        <span class="transcript-tag">RAM Only</span>
+                                        <div style="display: flex; gap: 6px; align-items: center;">
+                                            <button id="btn-toggle-audio-debug" class="btn-secondary" style="font-size: 9px; padding: 2px 7px; border-radius: 4px; border: 1px solid var(--ios-border); cursor: pointer;" title="Toggle live audio & STT diagnostics">Audio Diagnostics</button>
+                                            <span class="transcript-tag">RAM Only</span>
+                                        </div>
                                     </div>
                                     <div id="transcript-stream" class="transcript-scroll-area">
                                         <div class="transcript-empty" data-i18n="transcript_empty">Audio idle. Voice transcription streams here in real-time.</div>
+                                    </div>
+                                </div>
+
+                                <!-- Audio Diagnostics & Debug Panel (Section 11 & 25) -->
+                                <div id="audio-debug-panel" class="audio-debug-panel">
+                                    <div class="audio-debug-header">
+                                        <span>AUDIO &amp; SPEECH DIAGNOSTICS</span>
+                                        <span id="audio-debug-mic-indicator" class="debug-metric-val ok">MIC IDLE</span>
+                                    </div>
+                                    <div class="audio-debug-grid">
+                                        <div class="debug-metric-row">
+                                            <span class="debug-metric-label">Permission:</span>
+                                            <span id="dbg-perm" class="debug-metric-val">prompt</span>
+                                        </div>
+                                        <div class="debug-metric-row">
+                                            <span class="debug-metric-label">Stream:</span>
+                                            <span id="dbg-stream" class="debug-metric-val">idle</span>
+                                        </div>
+                                        <div class="debug-metric-row">
+                                            <span class="debug-metric-label">Track:</span>
+                                            <span id="dbg-track" class="debug-metric-val">none</span>
+                                        </div>
+                                        <div class="debug-metric-row">
+                                            <span class="debug-metric-label">AudioContext:</span>
+                                            <span id="dbg-ctx" class="debug-metric-val">suspended</span>
+                                        </div>
+                                        <div class="debug-metric-row">
+                                            <span class="debug-metric-label">Audio Frames:</span>
+                                            <span id="dbg-frames" class="debug-metric-val">0</span>
+                                        </div>
+                                        <div class="debug-metric-row">
+                                            <span class="debug-metric-label">Speech Rec:</span>
+                                            <span id="dbg-rec" class="debug-metric-val">idle</span>
+                                        </div>
+                                        <div class="debug-metric-row">
+                                            <span class="debug-metric-label">Transcript Events:</span>
+                                            <span id="dbg-events" class="debug-metric-val">0</span>
+                                        </div>
+                                        <div class="debug-metric-row">
+                                            <span class="debug-metric-label">Active Locale:</span>
+                                            <span id="dbg-locale" class="debug-metric-val">en-IN</span>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -572,6 +629,13 @@
                             <!-- Group 5: System & Architecture -->
                             <div class="mobile-settings-group">
                                 <span class="settings-group-label">SYSTEM & ARCHITECTURE</span>
+                                <div class="settings-item-row interactive-setting" id="setting-item-audio-debug" role="button" tabindex="0" title="Click to open Audio & Speech Diagnostics">
+                                    <div class="setting-text">
+                                        <span class="setting-title">Audio &amp; Speech Diagnostics</span>
+                                        <span class="setting-desc">Inspect real-time microphone stream, Web Audio API, and STT state</span>
+                                    </div>
+                                    <span class="setting-val-tag">TELEMETRY</span>
+                                </div>
                                 <div class="settings-item-row interactive-setting" id="setting-item-about" role="button" tabindex="0" title="Click to view VoxShield architecture and version">
                                     <div class="setting-text">
                                         <span class="setting-title">About VoxShield</span>

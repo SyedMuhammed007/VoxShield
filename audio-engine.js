@@ -1,8 +1,9 @@
 /**
- * VoxShield — Audio & Voice Engine
+ * VoxShield - Audio & Voice Engine
  * Handles real-time Web Audio API signal processing, synthetic/natural voice playback,
  * multi-lingual live microphone streaming, frequency spectrum analysis, and sound effects.
  * Supports dynamic language adaptation for English, Hindi, Tamil, Telugu, and Bengali.
+ * Enhanced for mobile browser compatibility (Android Chrome, iOS Safari, desktop).
  */
 
 class VoxAudioEngine {
@@ -10,9 +11,10 @@ class VoxAudioEngine {
         this.ctx = null;
         this.analyser = null;
         this.masterGain = null;
+        this.highpass = null;
+        this.lowpass = null;
         this.micStream = null;
         this.micSource = null;
-        this.filterNode = null;
         this.synth = window.speechSynthesis;
         this.recognition = null;
         this.isMuted = false;
@@ -21,15 +23,36 @@ class VoxAudioEngine {
         this.currentUtterance = null;
         this.onAudioFeatureCallback = null;
         this.onTranscriptCallback = null;
+        this.onDiagnosticsUpdate = null;
         this.animFrameId = null;
         this.voices = [];
         this.isMicActive = false;
+        this.isRecognizing = false;
+        this.recognitionRestartTimer = null;
+        this.isRecognitionIntentionallyStopped = false;
 
         // Multi-language recognition & synthesis configuration
         this.currentLangCode = localStorage.getItem("vox_lang") || "en";
         this.targetLang = this.mapLanguageCode(this.currentLangCode);
 
-        this.initSpeechRecognition();
+        // Internal Audio Diagnostics Tracker (Sections 11 & 25)
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        this.diagnostics = {
+            permission: "prompt",
+            streamActive: false,
+            trackEnabled: false,
+            trackLabel: "None",
+            audioContextState: "uninitialized",
+            audioFramesReceived: 0,
+            rmsLevel: 0,
+            speechRecognitionSupported: !!SpeechRec,
+            speechRecognitionStatus: !!SpeechRec ? "idle" : "unavailable",
+            transcriptEventsCount: 0,
+            lastTranscriptTime: "none",
+            lastErrorMsg: null,
+            activeLanguage: this.targetLang
+        };
+
         this.loadVoices();
     }
 
@@ -48,59 +71,76 @@ class VoxAudioEngine {
         this.currentLangCode = langCode || "en";
         const mapped = this.mapLanguageCode(this.currentLangCode);
         this.targetLang = mapped;
+        this.diagnostics.activeLanguage = mapped;
 
-        console.log(`[VoxAudioEngine] Language set to: ${this.currentLangCode} (Recognition locale: ${mapped})`);
+        console.log(`[VoxAudioEngine] Language set to: ${this.currentLangCode} (Locale: ${mapped})`);
 
-        if (this.recognition) {
-            this.recognition.lang = mapped;
-            // If microphone is actively listening, restart recognition so the acoustic model switches
-            if (this.isMicActive) {
-                try {
-                    this.recognition.stop();
-                } catch(e) {}
-                setTimeout(() => {
-                    if (this.isMicActive && this.recognition) {
-                        try {
-                            this.recognition.lang = this.targetLang;
-                            this.recognition.start();
-                        } catch(e) {
-                            console.warn("[VoxAudioEngine] Restart recognition error:", e);
-                        }
-                    }
-                }, 120);
-            }
+        if (this.isMicActive) {
+            // Restart speech recognition in new language
+            this.startSpeechRecognition(this.currentLangCode);
         }
 
         this.loadVoices();
     }
 
+    initContextNodes() {
+        if (!this.ctx) return;
+        this.analyser = this.ctx.createAnalyser();
+        this.analyser.fftSize = 2048;
+        this.analyser.smoothingTimeConstant = 0.82;
+
+        this.masterGain = this.ctx.createGain();
+        this.masterGain.gain.setValueAtTime(this.volume, this.ctx.currentTime);
+
+        // Telephone bandpass filter (simulates cellular call acoustic profile)
+        this.highpass = this.ctx.createBiquadFilter();
+        this.highpass.type = "highpass";
+        this.highpass.frequency.setValueAtTime(280, this.ctx.currentTime);
+
+        this.lowpass = this.ctx.createBiquadFilter();
+        this.lowpass.type = "lowpass";
+        this.lowpass.frequency.setValueAtTime(3400, this.ctx.currentTime);
+
+        this.highpass.connect(this.lowpass);
+        this.lowpass.connect(this.analyser);
+        this.analyser.connect(this.masterGain);
+        this.masterGain.connect(this.ctx.destination);
+    }
+
+    async resumeContext() {
+        if (!this.ctx) {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (AudioCtx) {
+                this.ctx = new AudioCtx();
+                this.initContextNodes();
+            }
+        }
+        if (this.ctx && this.ctx.state === "suspended") {
+            try {
+                await this.ctx.resume();
+                console.log("[VoxAudioEngine] AudioContext resumed, state:", this.ctx.state);
+            } catch(e) {
+                console.warn("[VoxAudioEngine] AudioContext resume failed:", e);
+            }
+        }
+        if (this.ctx) {
+            this.diagnostics.audioContextState = this.ctx.state;
+        }
+    }
+
     initContext() {
         if (!this.ctx) {
             const AudioCtx = window.AudioContext || window.webkitAudioContext;
-            this.ctx = new AudioCtx();
-            this.analyser = this.ctx.createAnalyser();
-            this.analyser.fftSize = 2048;
-            this.analyser.smoothingTimeConstant = 0.82;
-
-            this.masterGain = this.ctx.createGain();
-            this.masterGain.gain.setValueAtTime(this.volume, this.ctx.currentTime);
-
-            // Telephone bandpass filter (simulates cellular call acoustic profile)
-            this.highpass = this.ctx.createBiquadFilter();
-            this.highpass.type = "highpass";
-            this.highpass.frequency.setValueAtTime(280, this.ctx.currentTime);
-
-            this.lowpass = this.ctx.createBiquadFilter();
-            this.lowpass.type = "lowpass";
-            this.lowpass.frequency.setValueAtTime(3400, this.ctx.currentTime);
-
-            this.highpass.connect(this.lowpass);
-            this.lowpass.connect(this.analyser);
-            this.analyser.connect(this.masterGain);
-            this.masterGain.connect(this.ctx.destination);
+            if (AudioCtx) {
+                this.ctx = new AudioCtx();
+                this.initContextNodes();
+            }
         }
-        if (this.ctx.state === "suspended") {
-            this.ctx.resume();
+        if (this.ctx && this.ctx.state === "suspended") {
+            this.ctx.resume().catch(() => {});
+        }
+        if (this.ctx) {
+            this.diagnostics.audioContextState = this.ctx.state;
         }
     }
 
@@ -115,56 +155,212 @@ class VoxAudioEngine {
         }
     }
 
-    initSpeechRecognition() {
-        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (SpeechRec) {
-            try {
-                this.recognition = new SpeechRec();
-                this.recognition.continuous = true;
-                this.recognition.interimResults = true;
-                this.recognition.lang = this.targetLang || "en-IN";
+    // --- Live Microphone Audio & Speech-to-Text Pipeline (Sections 8-15) ---
+    async startMicrophone() {
+        await this.resumeContext();
+        this.isRecognitionIntentionallyStopped = false;
 
-                this.recognition.onresult = (event) => {
-                    let interim = "";
-                    let final = "";
-                    for (let i = event.resultIndex; i < event.results.length; ++i) {
-                        if (event.results[i].isFinal) {
-                            final += event.results[i][0].transcript;
-                        } else {
-                            interim += event.results[i][0].transcript;
-                        }
-                    }
-                    const text = (final || interim).trim();
-                    if (text && this.onTranscriptCallback) {
-                        this.onTranscriptCallback(text, !!final);
-                    }
-                };
-
-                this.recognition.onerror = (err) => {
-                    // Ignore common harmless mic state notifications
-                    if (err.error !== "no-speech" && err.error !== "aborted") {
-                        console.warn("[VoxAudioEngine] Speech recognition notification:", err.error);
-                    }
-                };
-
-                this.recognition.onend = () => {
-                    // Automatically keep recognizer alive if live microphone is still active
-                    if (this.isMicActive && this.recognition) {
-                        try {
-                            this.recognition.lang = this.targetLang || "en-IN";
-                            this.recognition.start();
-                        } catch(e) {}
-                    }
-                };
-            } catch (err) {
-                console.warn("[VoxAudioEngine] Could not initialize speech recognition:", err);
-            }
+        // Check getUserMedia support
+        const hasMediaDevices = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+        if (!hasMediaDevices && !navigator.getUserMedia && !navigator.webkitGetUserMedia) {
+            this.diagnostics.permission = "unsupported";
+            this.diagnostics.lastErrorMsg = "Microphone capture API not supported in this browser.";
+            console.error("[VoxAudioEngine]", this.diagnostics.lastErrorMsg);
+            return false;
         }
+
+        try {
+            let stream;
+            if (hasMediaDevices) {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: false,
+                        autoGainControl: true
+                    }
+                });
+            } else {
+                const legacyGetMedia = (navigator.getUserMedia || navigator.webkitGetUserMedia).bind(navigator);
+                stream = await new Promise((resolve, reject) => {
+                    legacyGetMedia({ audio: true }, resolve, reject);
+                });
+            }
+
+            this.micStream = stream;
+            this.diagnostics.permission = "granted";
+            this.diagnostics.streamActive = true;
+
+            const tracks = this.micStream.getAudioTracks();
+            if (tracks.length > 0) {
+                this.diagnostics.trackEnabled = tracks[0].enabled;
+                this.diagnostics.trackLabel = tracks[0].label || "Microphone Hardware Track";
+            }
+
+            if (!this.ctx) {
+                await this.resumeContext();
+            }
+
+            this.micSource = this.ctx.createMediaStreamSource(this.micStream);
+            this.micSource.connect(this.analyser);
+            this.isMicActive = true;
+
+            // Start Speech-to-Text Engine
+            this.startSpeechRecognition(this.currentLangCode);
+
+            return true;
+        } catch (err) {
+            console.error("[VoxAudioEngine] Microphone access failed:", err);
+            const isDenied = (err.name === "NotAllowedError" || err.name === "PermissionDeniedError");
+            this.diagnostics.permission = isDenied ? "denied" : "failed";
+            this.diagnostics.lastErrorMsg = isDenied
+                ? "Microphone access denied. Please allow microphone access in your browser settings to enable voice analysis."
+                : (err.message || "Microphone initialization failed.");
+            return false;
+        }
+    }
+
+    startSpeechRecognition(langCode) {
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        this.diagnostics.speechRecognitionSupported = !!SpeechRec;
+
+        if (!SpeechRec) {
+            this.diagnostics.speechRecognitionStatus = "unavailable";
+            console.warn("[VoxAudioEngine] Web Speech Recognition API not available in this browser.");
+            return false;
+        }
+
+        if (this.isRecognizing && this.recognition) {
+            return true;
+        }
+
+        try {
+            if (this.recognition) {
+                try { this.recognition.abort(); } catch(e) {}
+                this.recognition = null;
+            }
+
+            const targetLocale = this.mapLanguageCode(langCode || this.currentLangCode);
+            this.targetLang = targetLocale;
+            this.diagnostics.activeLanguage = targetLocale;
+
+            const rec = new SpeechRec();
+            rec.continuous = true;
+            rec.interimResults = true;
+            rec.maxAlternatives = 1;
+            rec.lang = targetLocale;
+
+            this.recognition = rec;
+            this.isRecognizing = false;
+
+            rec.onstart = () => {
+                this.isRecognizing = true;
+                this.diagnostics.speechRecognitionStatus = "listening";
+                console.log(`[VoxAudioEngine] Speech recognition active (${rec.lang})`);
+            };
+
+            rec.onresult = (event) => {
+                let interim = "";
+                let finalChunk = "";
+
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    const item = event.results[i];
+                    if (item.isFinal) {
+                        finalChunk += item[0].transcript;
+                    } else {
+                        interim += item[0].transcript;
+                    }
+                }
+
+                if (finalChunk.trim()) {
+                    this.diagnostics.transcriptEventsCount++;
+                    this.diagnostics.lastTranscriptTime = new Date().toLocaleTimeString();
+                    if (this.onTranscriptCallback) {
+                        this.onTranscriptCallback(finalChunk.trim(), true);
+                    }
+                }
+                if (interim.trim()) {
+                    this.diagnostics.transcriptEventsCount++;
+                    this.diagnostics.lastTranscriptTime = new Date().toLocaleTimeString();
+                    if (this.onTranscriptCallback) {
+                        this.onTranscriptCallback(interim.trim(), false);
+                    }
+                }
+            };
+
+            rec.onerror = (event) => {
+                console.warn("[VoxAudioEngine] Speech recognition notification:", event.error);
+                this.diagnostics.lastErrorMsg = event.error;
+
+                if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+                    this.diagnostics.speechRecognitionStatus = "permission_denied";
+                    this.isRecognitionIntentionallyStopped = true;
+                } else if (event.error === "language-not-supported") {
+                    console.warn(`[VoxAudioEngine] Language ${rec.lang} not supported on device. Falling back to en-IN.`);
+                    rec.lang = "en-IN";
+                    this.diagnostics.activeLanguage = "en-IN";
+                } else if (event.error === "no-speech") {
+                    this.diagnostics.speechRecognitionStatus = "listening";
+                } else if (event.error === "audio-capture") {
+                    this.diagnostics.speechRecognitionStatus = "audio_capture_busy";
+                }
+            };
+
+            rec.onend = () => {
+                this.isRecognizing = false;
+                console.log("[VoxAudioEngine] Speech recognition ended. isMicActive:", this.isMicActive);
+
+                // Prevent dead transcription on mobile browsers (Android Chrome / iOS Safari auto-end on pauses)
+                if (this.isMicActive && !this.isRecognitionIntentionallyStopped) {
+                    this.diagnostics.speechRecognitionStatus = "restarting";
+                    clearTimeout(this.recognitionRestartTimer);
+                    this.recognitionRestartTimer = setTimeout(() => {
+                        if (this.isMicActive && !this.isRecognitionIntentionallyStopped && !this.isRecognizing) {
+                            this.startSpeechRecognition(this.currentLangCode);
+                        }
+                    }, 150);
+                } else {
+                    this.diagnostics.speechRecognitionStatus = "stopped";
+                }
+            };
+
+            rec.start();
+            return true;
+        } catch (err) {
+            console.error("[VoxAudioEngine] Could not start speech recognition:", err);
+            this.diagnostics.speechRecognitionStatus = "failed_to_start";
+            return false;
+        }
+    }
+
+    stopMicrophone() {
+        this.isMicActive = false;
+        this.isRecognitionIntentionallyStopped = true;
+        clearTimeout(this.recognitionRestartTimer);
+
+        if (this.micStream) {
+            this.micStream.getTracks().forEach(track => {
+                try { track.stop(); } catch(e) {}
+            });
+            this.micStream = null;
+        }
+        if (this.micSource) {
+            try { this.micSource.disconnect(); } catch(e) {}
+            this.micSource = null;
+        }
+        if (this.recognition) {
+            try { this.recognition.stop(); } catch(e) {}
+            this.recognition = null;
+        }
+        this.isRecognizing = false;
+        this.diagnostics.streamActive = false;
+        this.diagnostics.trackEnabled = false;
+        this.diagnostics.speechRecognitionStatus = "stopped";
     }
 
     // --- Sound Effects Synthesizer (Zero External Dependencies) ---
     playRingtone() {
         this.initContext();
+        if (!this.ctx) return;
         const osc1 = this.ctx.createOscillator();
         const osc2 = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
@@ -190,6 +386,7 @@ class VoxAudioEngine {
 
     playConnectTone() {
         this.initContext();
+        if (!this.ctx) return;
         const now = this.ctx.currentTime;
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
@@ -206,6 +403,7 @@ class VoxAudioEngine {
 
     playWarningAlarm() {
         this.initContext();
+        if (!this.ctx) return;
         const now = this.ctx.currentTime;
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
@@ -223,6 +421,7 @@ class VoxAudioEngine {
 
     playPing() {
         this.initContext();
+        if (!this.ctx) return;
         const now = this.ctx.currentTime;
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
@@ -238,169 +437,88 @@ class VoxAudioEngine {
 
     playChallengeBeep() {
         this.initContext();
+        if (!this.ctx) return;
         const now = this.ctx.currentTime;
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
         osc.type = "sine";
-        osc.frequency.setValueAtTime(1318.5, now); // E6
+        osc.frequency.setValueAtTime(1200, now);
         gain.gain.setValueAtTime(0.15, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+        gain.gain.linearRampToValueAtTime(0, now + 0.25);
         osc.connect(gain);
         gain.connect(this.masterGain);
         osc.start(now);
-        osc.stop(now + 0.4);
+        osc.stop(now + 0.25);
     }
 
-    // --- Synthetic / Natural Caller Voice Playback with Multi-Language Support ---
+    // --- Scenario Dialogue Speech Synthesis ---
     speakDialogue(text, scenario, onEnd) {
         if (!this.synth) {
             if (onEnd) onEnd();
             return;
         }
 
+        this.synth.cancel();
         this.initContext();
-        this.stopVoice();
 
         const utterance = new SpeechSynthesisUtterance(text);
         this.currentUtterance = utterance;
+        this.isPlayingVoice = true;
 
-        const langPrefix = (this.currentLangCode || "en").toLowerCase();
+        utterance.volume = this.isMuted ? 0 : this.volume;
+        utterance.rate = scenario.speech_rate || 1.0;
+        utterance.pitch = scenario.speech_pitch || 1.0;
+        utterance.lang = this.targetLang || "en-IN";
 
-        // 1. First priority: match voice to the selected language
-        let chosenVoice = this.voices.find(v => v.lang.toLowerCase().startsWith(langPrefix));
-
-        // 2. If no regional voice is installed on user's OS, fall back to Indian/English voices
-        if (!chosenVoice) {
-            chosenVoice = this.voices.find(v => v.lang.toLowerCase().includes("in") || v.lang.toLowerCase().includes("en"));
-        }
-
-        if (chosenVoice) {
-            utterance.voice = chosenVoice;
-            utterance.lang = this.targetLang || chosenVoice.lang;
-        } else {
-            utterance.lang = this.targetLang || "en-IN";
-        }
-
-        // Configure voice parameters according to scenario persona
-        if (scenario && scenario.voice_type === "ai_clone_robotic") {
-            utterance.rate = 1.14;
-            utterance.pitch = 0.86; // Flatter pitch typical of synthetic neural TTS
-        } else if (scenario && scenario.voice_type === "human_natural") {
-            utterance.rate = 1.0;
-            utterance.pitch = 1.12; // Natural warmer human inflection
-        } else if (scenario && scenario.voice_type === "replay_loop") {
-            utterance.rate = 0.94;
-            utterance.pitch = 0.90; // Fixed metallic replay cadence
-        } else {
-            utterance.rate = 1.0;
-            utterance.pitch = 1.0;
-        }
-
-        let simOscInterval = null;
-
-        utterance.onstart = () => {
-            this.isPlayingVoice = true;
-            if (scenario) {
-                simOscInterval = this.startWaveformSimulation(scenario);
+        // Assign natural voice if available
+        if (this.voices.length > 0) {
+            const langPrefix = this.targetLang.split("-")[0];
+            const matchingVoices = this.voices.filter(v => v.lang.startsWith(langPrefix) || v.lang.startsWith(this.targetLang));
+            if (matchingVoices.length > 0) {
+                utterance.voice = matchingVoices[0];
             }
-        };
+        }
+
+        this.startWaveformSimulation();
 
         utterance.onend = () => {
             this.isPlayingVoice = false;
-            if (simOscInterval) clearInterval(simOscInterval);
             if (onEnd) onEnd();
         };
 
-        utterance.onerror = (err) => {
+        utterance.onerror = (e) => {
+            console.warn("[VoxAudioEngine] Speech synthesis notification:", e);
             this.isPlayingVoice = false;
-            if (simOscInterval) clearInterval(simOscInterval);
             if (onEnd) onEnd();
         };
 
         this.synth.speak(utterance);
     }
 
-    // Creates dynamic harmonic energy in the analyser while the voice is speaking
-    startWaveformSimulation(scenario) {
-        if (!this.ctx) return null;
+    startWaveformSimulation() {
+        if (!this.analyser) return;
+        // Inject synthetic frequency harmonics into analyser for realistic visualizer animation
         const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-
-        osc.type = scenario.voice_type === "ai_clone_robotic" ? "sawtooth" : "sine";
-        osc.frequency.setValueAtTime(scenario.pitch_base || 180, this.ctx.currentTime);
-        gain.gain.setValueAtTime(0.0001, this.ctx.currentTime); // Inaudible to speaker, feeds AnalyserNode
-        
-        osc.connect(gain);
-        gain.connect(this.analyser);
+        const g = this.ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(220, this.ctx.currentTime);
+        g.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+        osc.connect(g);
+        g.connect(this.analyser);
         osc.start();
-
-        const interval = setInterval(() => {
-            if (!this.isPlayingVoice) {
-                try { osc.stop(); } catch(e) {}
-                clearInterval(interval);
-                return;
-            }
-            const jitter = (Math.random() - 0.5) * ((scenario.pitch_variance || 0.1) * 40);
-            osc.frequency.setValueAtTime((scenario.pitch_base || 180) + jitter, this.ctx.currentTime);
-        }, 120);
-
-        return interval;
+        setTimeout(() => {
+            try {
+                osc.stop();
+                osc.disconnect();
+            } catch(e) {}
+        }, 3000);
     }
 
     stopVoice() {
-        if (this.synth && this.synth.speaking) {
+        if (this.synth) {
             this.synth.cancel();
         }
         this.isPlayingVoice = false;
-        this.currentUtterance = null;
-    }
-
-    // --- Live Microphone Integration with Dynamic Language Locale ---
-    async startMicrophone(onAudioData) {
-        this.initContext();
-        try {
-            this.micStream = await navigator.mediaDevices.getUserMedia({
-                audio: {
-                    echoCancellation: true,
-                    noiseSuppression: false,
-                    autoGainControl: true
-                }
-            });
-
-            this.micSource = this.ctx.createMediaStreamSource(this.micStream);
-            this.micSource.connect(this.analyser);
-            this.isMicActive = true;
-
-            if (this.recognition) {
-                try {
-                    this.recognition.lang = this.targetLang || "en-IN";
-                    this.recognition.start();
-                    console.log(`[VoxAudioEngine] Live Speech Recognition active in: ${this.recognition.lang}`);
-                } catch(e) {
-                    // Recognition might already be running
-                }
-            }
-
-            return true;
-        } catch (err) {
-            console.error("[VoxAudioEngine] Microphone access failed:", err);
-            return false;
-        }
-    }
-
-    stopMicrophone() {
-        if (this.micStream) {
-            this.micStream.getTracks().forEach(track => track.stop());
-            this.micStream = null;
-        }
-        if (this.micSource) {
-            try { this.micSource.disconnect(); } catch(e) {}
-            this.micSource = null;
-        }
-        if (this.recognition) {
-            try { this.recognition.stop(); } catch(e) {}
-        }
-        this.isMicActive = false;
     }
 
     // --- Feature Extraction from AnalyserNode ---
@@ -423,39 +541,42 @@ class VoxAudioEngine {
         const rms = Math.sqrt(sumSquares / bufferLength);
         const zcr = zeroCrossings / bufferLength;
 
-        // 2. Fundamental Frequency (Autocorrelation)
-        const pitch = this.calculatePitch(timeData, this.ctx.sampleRate);
+        // 2. Fundamental Frequency (f0 / Pitch via Autocorrelation)
+        const pitch = this.calculatePitch(timeData, this.ctx ? this.ctx.sampleRate : 44100);
+
+        // Update internal diagnostics
+        this.diagnostics.audioFramesReceived++;
+        this.diagnostics.rmsLevel = rms;
 
         return { rms, pitch, zcr };
     }
 
     calculatePitch(timeData, sampleRate) {
-        let bestOffset = -1;
-        let bestCorrelation = 0;
-        const minSamples = Math.floor(sampleRate / 400); // 400 Hz max pitch
-        const maxSamples = Math.floor(sampleRate / 80);  // 80 Hz min pitch
+        let maxCorr = 0;
+        let bestLag = -1;
+        const minLag = Math.floor(sampleRate / 400); // 400 Hz max
+        const maxLag = Math.floor(sampleRate / 70);  // 70 Hz min
 
-        for (let offset = minSamples; offset < maxSamples; offset++) {
-            let correlation = 0;
-            for (let i = 0; i < maxSamples; i++) {
-                correlation += Math.abs(timeData[i] - timeData[i + offset]);
+        for (let lag = minLag; lag < maxLag; lag++) {
+            let corr = 0;
+            for (let i = 0; i < timeData.length - lag; i++) {
+                corr += timeData[i] * timeData[i + lag];
             }
-            correlation = 1 - (correlation / maxSamples);
-            if (correlation > bestCorrelation && correlation > 0.88) {
-                bestCorrelation = correlation;
-                bestOffset = offset;
+            if (corr > maxCorr) {
+                maxCorr = corr;
+                bestLag = lag;
             }
         }
 
-        if (bestOffset !== -1) {
-            return sampleRate / bestOffset;
+        if (bestLag > 0 && maxCorr > 0.1) {
+            return sampleRate / bestLag;
         }
         return 0;
     }
 
-    // --- Real-time Oscilloscope Waveform Renderer ---
-    drawWaveform(canvas, color = "#06b6d4") {
-        if (!this.analyser || !canvas) return;
+    // --- Canvas Oscilloscope Visualizer ---
+    drawWaveform(canvas, color = "#00f0ff") {
+        if (!canvas || !this.analyser) return;
         const ctx = canvas.getContext("2d");
         const width = canvas.width;
         const height = canvas.height;
@@ -464,8 +585,10 @@ class VoxAudioEngine {
         const dataArray = new Uint8Array(bufferLength);
         this.analyser.getByteTimeDomainData(dataArray);
 
-        ctx.clearRect(0, 0, width, height);
-        ctx.lineWidth = 2;
+        ctx.fillStyle = "rgba(10, 14, 23, 0.4)";
+        ctx.fillRect(0, 0, width, height);
+
+        ctx.lineWidth = 2.5;
         ctx.strokeStyle = color;
         ctx.beginPath();
 
@@ -486,57 +609,56 @@ class VoxAudioEngine {
 
         ctx.lineTo(width, height / 2);
         ctx.stroke();
+
+        // Neon Glow effect
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = color;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
     }
 
-    // --- Frequency Spectrum FFT Bars Renderer ---
     drawSpectrum(canvas) {
-        if (!this.analyser || !canvas) return;
+        if (!canvas || !this.analyser) return;
         const ctx = canvas.getContext("2d");
         const width = canvas.width;
         const height = canvas.height;
 
-        const bufferLength = this.analyser.frequencyBinCount;
+        const bufferLength = 64; // Subsampled for fast 60fps rendering
         const dataArray = new Uint8Array(bufferLength);
         this.analyser.getByteFrequencyData(dataArray);
 
         ctx.clearRect(0, 0, width, height);
 
-        const barCount = 32;
-        const barWidth = (width / barCount) - 2;
-        const step = Math.floor(bufferLength / barCount);
+        const barWidth = (width / bufferLength) * 1.5;
+        let x = 0;
 
-        for (let i = 0; i < barCount; i++) {
-            const value = dataArray[i * step];
-            const percent = value / 255;
-            const barHeight = height * percent;
+        for (let i = 0; i < bufferLength; i++) {
+            const barHeight = (dataArray[i] / 255) * height;
 
-            let gradient = ctx.createLinearGradient(0, height, 0, height - barHeight);
-            if (percent > 0.75) {
-                gradient.addColorStop(0, "#06b6d4");
-                gradient.addColorStop(1, "#f43f5e");
-            } else {
-                gradient.addColorStop(0, "#06b6d4");
-                gradient.addColorStop(1, "#10b981");
-            }
+            // Gradient cyan to emerald
+            const grad = ctx.createLinearGradient(0, height, 0, 0);
+            grad.addColorStop(0, "rgba(6, 182, 212, 0.2)");
+            grad.addColorStop(0.5, "#06b6d4");
+            grad.addColorStop(1, "#10b981");
 
-            ctx.fillStyle = gradient;
-            ctx.fillRect(i * (barWidth + 2), height - barHeight, barWidth, barHeight);
+            ctx.fillStyle = grad;
+            ctx.fillRect(x, height - barHeight, barWidth - 1, barHeight);
+
+            x += barWidth;
         }
     }
 
     setMuted(muted) {
         this.isMuted = muted;
         if (this.masterGain && this.ctx) {
-            this.masterGain.gain.setValueAtTime(muted ? 0 : this.volume, this.ctx.currentTime);
+            this.masterGain.gain.setValueAtTime(this.isMuted ? 0 : this.volume, this.ctx.currentTime);
         }
     }
 
     setVolume(val) {
-        this.volume = Math.max(0, Math.min(1, val));
+        this.volume = parseFloat(val);
         if (this.masterGain && this.ctx && !this.isMuted) {
             this.masterGain.gain.setValueAtTime(this.volume, this.ctx.currentTime);
         }
     }
 }
-
-window.VoxAudioEngine = VoxAudioEngine;

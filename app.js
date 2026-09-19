@@ -26,7 +26,10 @@ class VoxShieldApp {
  this.initDOM();
  this.initWebSocket();
  this.setupAudioListeners();
+        this.finalTranscriptSegments = [];
+        this.interimTranscript = null;
         this.transcriptSegments = [];
+        this.debugInterval = null;
         window.voxApp = this;
         window.app = this;
  }
@@ -96,6 +99,22 @@ class VoxShieldApp {
         document.getElementById("btn-theme-toggle-settings")?.addEventListener("click", handleThemeToggle);
 
         this.setupSettingsInteractions();
+        // Audio Diagnostics Toggle Button
+        const debugBtn = document.getElementById("btn-toggle-audio-debug");
+        if (debugBtn) {
+            debugBtn.addEventListener("click", () => {
+                const pnl = document.getElementById("audio-debug-panel");
+                if (pnl) {
+                    const isOpen = pnl.classList.toggle("active");
+                    if (isOpen) {
+                        this.startAudioDebugLoop();
+                        this.updateAudioDebugUI();
+                    } else {
+                        this.stopAudioDebugLoop();
+                    }
+                }
+            });
+        }
 
  // Navigation buttons
  document.querySelectorAll("[data-screen]").forEach(btn => {
@@ -230,68 +249,105 @@ class VoxShieldApp {
  }
 
  // --- Call Lifecycle ---
- async startCall(scenarioKey) {
- const scenario = window.VOX_SCENARIOS[scenarioKey];
- if (!scenario) return;
+    async startCall(scenarioKey) {
+        const scenario = window.VOX_SCENARIOS[scenarioKey];
+        if (!scenario) return;
 
- this.currentScenario = scenario;
- this.detectionEngine.startSession(scenario);
- this.dialogueIndex = 0;
- this.callSeconds = 0;
+        // Explicitly resume AudioContext within user interaction event (Section 10)
+        await this.audioEngine.resumeContext();
 
- // Switch to Live Protection Screen
- this.switchScreen("live-call");
- this.updateCallHeaderUI(scenario);
- this.resetIndicatorsUI();
+        this.currentScenario = scenario;
+        this.detectionEngine.startSession(scenario);
+        this.dialogueIndex = 0;
+        this.callSeconds = 0;
+        this.finalTranscriptSegments = [];
+        this.interimTranscript = null;
 
- // Play phone connect sound effect
- this.audioEngine.playConnectTone();
+        // Switch to Live Protection Screen
+        this.switchScreen("live-call");
+        this.updateCallHeaderUI(scenario);
+        this.resetIndicatorsUI();
+        this.renderTranscriptUI();
 
- // Start call timer
- clearInterval(this.callInterval);
- this.callInterval = setInterval(() => {
- this.callSeconds++;
- const mins = Math.floor(this.callSeconds / 60).toString().padStart(2, "0");
- const secs = (this.callSeconds % 60).toString().padStart(2, "0");
- const timerEl = document.getElementById("call-timer");
- if (timerEl) timerEl.textContent = `${mins}:${secs}`;
+        // Start audio diagnostics telemetry if debug panel is active
+        const debugPnl = document.getElementById("audio-debug-panel");
+        if (debugPnl && debugPnl.classList.contains("active")) {
+            this.startAudioDebugLoop();
+        }
 
- // Apply scenario progression if available
- if (scenario.telemetry_timeline) {
- const currentEntry = scenario.telemetry_timeline.find(t => t.time === this.callSeconds);
- if (currentEntry) {
- this.detectionEngine.applyScenarioTimeline(currentEntry);
- this.updateTelemetryUI();
+        // Play phone connect sound effect
+        this.audioEngine.playConnectTone();
 
- // Automatic triggers for realistic hackathon demo
- // Passive verification mode active
- if (this.callSeconds === 5 && scenario.triggers_trusted_channel) {
- this.triggerTrustedChannelPush();
- }
- }
- }
- }, 1000);
+        // Start call timer
+        clearInterval(this.callInterval);
+        this.callInterval = setInterval(() => {
+            this.callSeconds++;
+            const mins = Math.floor(this.callSeconds / 60).toString().padStart(2, "0");
+            const secs = (this.callSeconds % 60).toString().padStart(2, "0");
+            const timerEl = document.getElementById("call-timer");
+            if (timerEl) timerEl.textContent = `${mins}:${secs}`;
 
- // Tell WebSocket backend if connected
- if (this.ws && this.wsConnected) {
- this.ws.send(JSON.stringify({
- type: "start_call",
- scenario: scenarioKey
- }));
- }
+            // Apply scenario progression if available
+            if (scenario.telemetry_timeline) {
+                const currentEntry = scenario.telemetry_timeline.find(t => t.time === this.callSeconds);
+                if (currentEntry) {
+                    this.detectionEngine.applyScenarioTimeline(currentEntry);
+                    this.updateTelemetryUI();
 
- // Audio Execution
- if (scenario.voice_type === "live_microphone") {
- const micOk = await this.audioEngine.startMicrophone();
- const transcriptBox = document.getElementById("transcript-stream");
- if (transcriptBox) {
- transcriptBox.innerHTML = `<div class="transcript-msg system-note">Microphone stream active. Real-time neural inference running in ephemeral memory.</div>`;
- }
- } else {
- // Pre-scripted voice dialogues using real speech synthesis
- this.playNextDialogue();
- }
- }
+                    // Automatic triggers for realistic hackathon demo
+                    if (this.callSeconds === 5 && scenario.triggers_trusted_channel) {
+                        this.triggerTrustedChannelPush();
+                    }
+                }
+            }
+        }, 1000);
+
+        // Tell WebSocket backend if connected
+        if (this.ws && this.wsConnected) {
+            this.ws.send(JSON.stringify({
+                type: "start_call",
+                scenario: scenarioKey
+            }));
+        }
+
+        // Audio Execution (Sections 7-15)
+        if (scenario.voice_type === "live_microphone") {
+            const transcriptBox = document.getElementById("transcript-stream");
+            if (transcriptBox) {
+                transcriptBox.innerHTML = `<div class="transcript-msg system-note">
+                    <span class="transcript-speaker-tag tag-user">MIC ACCESS</span>
+                    Requesting hardware microphone authorization...
+                </div>`;
+            }
+
+            const micOk = await this.audioEngine.startMicrophone();
+            if (transcriptBox) {
+                if (micOk) {
+                    const sttAvailable = this.audioEngine.diagnostics.speechRecognitionSupported;
+                    transcriptBox.innerHTML = `<div class="transcript-msg system-note">
+                        <span class="transcript-speaker-tag tag-user">ACTIVE</span>
+                        <strong>Microphone stream active.</strong><br>
+                        ${sttAvailable ? "Speak naturally. Real-time speech transcription & neural anti-spoofing running in volatile RAM..." : "Real-time acoustic analysis active. (Note: Browser Web Speech API is not supported on this mobile browser engine; raw audio spectrum and anti-spoofing continue running)."}
+                    </div>`;
+                } else {
+                    const errMsg = this.audioEngine.diagnostics.lastErrorMsg || "Microphone access denied. Please allow microphone in browser settings.";
+                    transcriptBox.innerHTML = `<div class="transcript-msg system-note" style="border-left: 3px solid var(--rose); background: rgba(244,63,94,0.1);">
+                        <strong class="text-rose">Microphone Access Denied or Unavailable</strong><br>
+                        ${errMsg}
+                    </div>`;
+                    this.openSettingsModal(
+                        "Microphone Access Required",
+                        `<p><strong>Microphone Permission Needed</strong></p>
+                        <p>VoxShield requires microphone access to perform real-time neural anti-spoofing and voice biometric attestation.</p>
+                        <p>Please check your browser permissions (tap the lock icon in the browser address bar &rarr; Permissions &rarr; Allow Microphone) and tap Direct Microphone Verification again.</p>`
+                    );
+                }
+            }
+        } else {
+            // Pre-scripted voice dialogues using speech synthesis
+            this.playNextDialogue();
+        }
+    }
 
  playNextDialogue() {
  if (!this.detectionEngine.isCallActive || !this.currentScenario) return;
@@ -337,35 +393,36 @@ class VoxShieldApp {
  }
 
  // 3. Reset 5 Live Defense Indicator Cards
- const statusPill = document.getElementById("indicator-call-status");
- if (statusPill) {
- statusPill.innerHTML = window.voxI18n ? window.voxI18n.t("status_idle") : "IDLE / READY";
- statusPill.className = "indicator-val status-gray";
- }
+        const statusPill = document.getElementById("indicator-call-status");
+        if (statusPill) {
+            statusPill.innerHTML = `<span class="status-badge-text">${window.voxI18n ? window.voxI18n.t("status_idle") : "IDLE / READY"}</span>`;
+            statusPill.className = "indicator-val status-gray single-metric";
+        }
 
- const authPill = document.getElementById("indicator-authenticity");
- if (authPill) {
- authPill.innerHTML = window.voxI18n ? window.voxI18n.t("status_nominal") : "NOMINAL";
- authPill.className = "indicator-val status-gray";
- }
+        const authPill = document.getElementById("indicator-authenticity");
+        if (authPill) {
+            authPill.innerHTML = `<span class="status-badge-text">${window.voxI18n ? window.voxI18n.t("status_nominal") : "NOMINAL"}</span>`;
+            authPill.className = "indicator-val status-gray single-metric";
+        }
 
- const speakerPill = document.getElementById("indicator-speaker");
- if (speakerPill) {
- speakerPill.innerHTML = window.voxI18n ? window.voxI18n.t("status_unverified") : "UNVERIFIED";
- speakerPill.className = "indicator-val status-gray";
- }
+        const speakerPill = document.getElementById("indicator-speaker");
+        if (speakerPill) {
+            speakerPill.innerHTML = `<span class="status-badge-text">${window.voxI18n ? window.voxI18n.t("status_unverified") : "UNVERIFIED"}</span>`;
+            speakerPill.className = "indicator-val status-gray single-metric";
+        }
 
- const replayPill = document.getElementById("indicator-replay");
- if (replayPill) {
- replayPill.innerHTML = window.voxI18n ? window.voxI18n.t("status_nominal") : "NOMINAL";
- replayPill.className = "indicator-val status-gray";
- }
+        const replayPill = document.getElementById("indicator-replay");
+        if (replayPill) {
+            replayPill.innerHTML = `<span class="status-badge-text">${window.voxI18n ? window.voxI18n.t("status_nominal") : "NOMINAL"}</span>`;
+            replayPill.className = "indicator-val status-gray single-metric";
+        }
 
- const contextPill = document.getElementById("indicator-context");
- if (contextPill) {
- contextPill.innerHTML = window.voxI18n ? window.voxI18n.t("status_neutral") : "NEUTRAL";
- contextPill.className = "indicator-val status-gray";
- }
+        const contextPill = document.getElementById("indicator-context");
+        if (contextPill) {
+            const neutralText = window.voxI18n ? window.voxI18n.t("status_neutral") : "NEUTRAL";
+            contextPill.innerHTML = `<span class="status-badge-text">${neutralText}</span>`;
+            contextPill.className = "indicator-val status-gray single-metric";
+        }
 
  // 4. Reset Primary Decision Banner
  const actionBanner = document.getElementById("indicator-decision-banner");
@@ -417,6 +474,9 @@ class VoxShieldApp {
  clearTimeout(this.dialogueTimer);
  this.audioEngine.stopVoice();
  this.audioEngine.stopMicrophone();
+        this.finalTranscriptSegments = [];
+        this.interimTranscript = null;
+        this.stopAudioDebugLoop();
 
  const report = this.detectionEngine.endSession();
  if (report && report.is_flagged) {
@@ -562,30 +622,33 @@ class VoxShieldApp {
  }
  }
 
- resetIndicatorsUI() {
- const stream = document.getElementById("transcript-stream");
- if (stream) stream.innerHTML = `<div class="transcript-msg system-note"> Encrypted call connected (WSS / AES-256). Live AI detection active.</div>`;
- this.updateTelemetryUI();
- }
+    resetIndicatorsUI() {
+        this.finalTranscriptSegments = [];
+        this.interimTranscript = null;
+        this.renderTranscriptUI();
+        this.updateTelemetryUI();
+    }
 
     addTranscriptSegment(speaker, text, isFinal) {
         if (!text || !text.trim()) return;
         text = text.trim();
+        const speakerLabel = (speaker === "user" || speaker === "YOU") ? "YOU" : "CALLER";
+        const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-        // Check if updating an active interim speech segment
-        const lastSeg = this.transcriptSegments[this.transcriptSegments.length - 1];
-        if (lastSeg && lastSeg.speaker === speaker && !lastSeg.isFinal) {
-            lastSeg.text = text;
-            lastSeg.isFinal = !!isFinal;
-            lastSeg.timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        } else {
-            this.transcriptSegments.push({
+        if (isFinal) {
+            this.finalTranscriptSegments.push({
                 id: Date.now() + Math.random(),
-                speaker: speaker, // "caller" or "user"
+                speaker: speakerLabel,
                 text: text,
-                isFinal: !!isFinal,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                timestamp: timeStr
             });
+            this.interimTranscript = null;
+        } else {
+            this.interimTranscript = {
+                speaker: speakerLabel,
+                text: text,
+                timestamp: timeStr
+            };
         }
 
         this.renderTranscriptUI();
@@ -595,29 +658,50 @@ class VoxShieldApp {
         const stream = document.getElementById("transcript-stream");
         if (!stream) return;
 
-        if (!this.transcriptSegments || this.transcriptSegments.length === 0) {
-            stream.innerHTML = `<div class="transcript-empty" data-i18n="transcript_empty">Audio idle. Voice transcription streams here in real-time.</div>`;
+        if ((!this.finalTranscriptSegments || this.finalTranscriptSegments.length === 0) && !this.interimTranscript) {
+            if (this.detectionEngine && this.detectionEngine.isCallActive) {
+                const isMic = this.currentScenario && this.currentScenario.voice_type === "live_microphone";
+                stream.innerHTML = `<div class="transcript-msg system-note">
+                    ${isMic ? "Microphone active. Listening for real-time speech..." : "Encrypted call connected. Voice transcription active..."}
+                </div>`;
+            } else {
+                stream.innerHTML = `<div class="transcript-empty" data-i18n="transcript_empty">Audio idle. Voice transcription streams here in real-time.</div>`;
+            }
             return;
         }
 
-        // Stick-to-bottom scroll detection
-        const isNearBottom = stream.scrollHeight - stream.scrollTop - stream.clientHeight < 70;
+        // Stick-to-bottom scroll detection (Section 20)
+        const isNearBottom = stream.scrollHeight - stream.scrollTop - stream.clientHeight < 80;
         const highlightRegex = /(transfer|wire|rupees|inr|lakh|thousand|emergency|card blocked|otp|password|immediate|vendor|इमरजेंसी|पैसे|रुपये|ट्रांसफर|ओटीपी|पासवर्ड|मुसीबत|அவசரம்|பணம்|ரூபாய்|கடவுச்சொல்|ఎమర్జెన్సీ|డబ్బు|రూపాయలు|ఓటీపీ|ఆపద|বিপদ|টাকা|ট্রান্সফার|ওটিপি)/gi;
 
         let html = "";
-        this.transcriptSegments.forEach(seg => {
+        this.finalTranscriptSegments.forEach(seg => {
             let safeText = seg.text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
             safeText = safeText.replace(highlightRegex, `<mark class="threat-keyword">$1</mark>`);
-            const speakerClass = seg.speaker === "user" ? "user-line" : "caller-line";
-            const tagClass = seg.speaker === "user" ? "tag-user" : "tag-caller";
-            const speakerName = seg.speaker === "user" ? "YOU" : "CALLER";
+            const isUser = seg.speaker === "YOU";
+            const speakerClass = isUser ? "user-line" : "caller-line";
+            const tagClass = isUser ? "tag-user" : "tag-caller";
 
             html += `<div class="transcript-msg ${speakerClass}">
-                <span class="transcript-speaker-tag ${tagClass}">${speakerName}</span>
+                <span class="transcript-speaker-tag ${tagClass}">${seg.speaker}</span>
                 <span class="text">${safeText}</span>
                 <span class="transcript-timestamp">${seg.timestamp}</span>
             </div>`;
         });
+
+        if (this.interimTranscript) {
+            let safeInterim = this.interimTranscript.text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            safeInterim = safeInterim.replace(highlightRegex, `<mark class="threat-keyword">$1</mark>`);
+            const isUser = this.interimTranscript.speaker === "YOU";
+            const speakerClass = isUser ? "user-line" : "caller-line";
+            const tagClass = isUser ? "tag-user" : "tag-caller";
+
+            html += `<div class="transcript-msg ${speakerClass} interim-line">
+                <span class="transcript-speaker-tag ${tagClass}">${this.interimTranscript.speaker}</span>
+                <span class="text">${safeInterim}</span>
+                <span class="transcript-typing-dot">●●●</span>
+            </div>`;
+        }
 
         stream.innerHTML = html;
 
@@ -628,7 +712,7 @@ class VoxShieldApp {
         // Synchronize with SOC inspector transcript drawer if present
         const socStream = document.getElementById("soc-transcript-stream");
         if (socStream) {
-            const socNearBottom = socStream.scrollHeight - socStream.scrollTop - socStream.clientHeight < 70;
+            const socNearBottom = socStream.scrollHeight - socStream.scrollTop - socStream.clientHeight < 80;
             socStream.innerHTML = html;
             if (socNearBottom) socStream.scrollTop = socStream.scrollHeight;
         }
@@ -637,80 +721,80 @@ class VoxShieldApp {
     updateTranscriptUI(text, isFinal, speaker = "caller") {
         this.addTranscriptSegment(speaker, text, isFinal);
     }
-
  updateTelemetryUI() {
  const d = this.detectionEngine;
 
  // 1. Call Status
- const statusPill = document.getElementById("indicator-call-status");
- if (statusPill) {
- statusPill.innerHTML = window.voxI18n ? window.voxI18n.t("status_connected") : "CONNECTED (ENCRYPTED)";
- statusPill.className = "indicator-val status-green";
- }
+        // 1. Call Status (Sections 1-4: Responsive, flexible layout)
+        const statusPill = document.getElementById("indicator-call-status");
+        if (statusPill) {
+            statusPill.innerHTML = `<span class="status-badge-text">${window.voxI18n ? window.voxI18n.t("status_connected") : "CONNECTED (ENCRYPTED)"}</span>`;
+            statusPill.className = "indicator-val status-green single-metric";
+        }
 
- // 2. Voice Authenticity (AASIST / RawNet2)
- const authPill = document.getElementById("indicator-authenticity");
- const socAasistScore = document.getElementById("soc-aasist-score");
- const socAasistBar = document.getElementById("soc-aasist-bar");
- if (authPill) {
- if (d.deepfakeScore >= 70) {
- authPill.innerHTML = `${window.voxI18n ? window.voxI18n.t("status_synthetic") : "SYNTHETIC DETECTED"} (${d.deepfakeScore.toFixed(1)}%)`;
- authPill.className = "indicator-val status-red animate-pulse";
- } else {
- authPill.innerHTML = `AUTHENTIC VOICE (${(100 - d.deepfakeScore).toFixed(1)}%)`;
- authPill.className = "indicator-val status-green";
- }
- }
- if (socAasistScore) socAasistScore.textContent = `${d.deepfakeScore.toFixed(1)}%`;
- if (socAasistBar) socAasistBar.style.width = `${d.deepfakeScore}%`;
+        // 2. Voice Authenticity (AASIST / RawNet2 - Responsive multi-line wrap, no clipping)
+        const authPill = document.getElementById("indicator-authenticity");
+        const socAasistScore = document.getElementById("soc-aasist-score");
+        const socAasistBar = document.getElementById("soc-aasist-bar");
+        if (authPill) {
+            if (d.deepfakeScore >= 70) {
+                authPill.innerHTML = `<span class="status-badge-text">${window.voxI18n ? window.voxI18n.t("status_synthetic") : "SYNTHETIC DETECTED"}</span><span class="status-badge-pct">${d.deepfakeScore.toFixed(1)}%</span>`;
+                authPill.className = "indicator-val status-red animate-pulse";
+            } else {
+                authPill.innerHTML = `<span class="status-badge-text">AUTHENTIC VOICE</span><span class="status-badge-pct">${(100 - d.deepfakeScore).toFixed(1)}%</span>`;
+                authPill.className = "indicator-val status-green";
+            }
+        }
+        if (socAasistScore) socAasistScore.textContent = `${d.deepfakeScore.toFixed(1)}%`;
+        if (socAasistBar) socAasistBar.style.width = `${d.deepfakeScore}%`;
 
- // 3. Speaker Verification (ECAPA-TDNN)
- const speakerPill = document.getElementById("indicator-speaker");
- const socSpeakerScore = document.getElementById("soc-speaker-score");
- const socSpeakerBar = document.getElementById("soc-speaker-bar");
- if (speakerPill) {
- if (d.speakerSimilarity >= 0.80) {
- speakerPill.innerHTML = `VERIFIED (SIMILARITY: ${d.speakerSimilarity.toFixed(2)})`;
- speakerPill.className = "indicator-val status-green";
- } else {
- speakerPill.innerHTML = `VERIFICATION REQUIRED (${d.speakerSimilarity.toFixed(2)})`;
- speakerPill.className = "indicator-val status-yellow";
- }
- }
- if (socSpeakerScore) socSpeakerScore.textContent = `${(d.speakerSimilarity * 100).toFixed(1)}%`;
- if (socSpeakerBar) socSpeakerBar.style.width = `${d.speakerSimilarity * 100}%`;
+        // 3. Speaker Verification (ECAPA-TDNN)
+        const speakerPill = document.getElementById("indicator-speaker");
+        const socSpeakerScore = document.getElementById("soc-speaker-score");
+        const socSpeakerBar = document.getElementById("soc-speaker-bar");
+        if (speakerPill) {
+            if (d.speakerSimilarity >= 0.80) {
+                speakerPill.innerHTML = `<span class="status-badge-text">${window.voxI18n ? window.voxI18n.t("status_verified") : "VERIFIED MATCH"}</span><span class="status-badge-pct">${d.speakerSimilarity.toFixed(2)}</span>`;
+                speakerPill.className = "indicator-val status-green";
+            } else {
+                speakerPill.innerHTML = `<span class="status-badge-text">${window.voxI18n ? window.voxI18n.t("status_unverified") : "VERIFICATION REQUIRED"}</span><span class="status-badge-pct">${d.speakerSimilarity.toFixed(2)}</span>`;
+                speakerPill.className = "indicator-val status-yellow";
+            }
+        }
+        if (socSpeakerScore) socSpeakerScore.textContent = `${(d.speakerSimilarity * 100).toFixed(1)}%`;
+        if (socSpeakerBar) socSpeakerBar.style.width = `${d.speakerSimilarity * 100}%`;
 
- // 4. Replay Detection (Silero VAD)
- const replayPill = document.getElementById("indicator-replay");
- const socReplayScore = document.getElementById("soc-replay-score");
- if (replayPill) {
- if (d.livenessScore >= 0.50) {
- replayPill.innerHTML = window.voxI18n ? window.voxI18n.t("status_nominal") : "LIVE AUDIO (PASS)";
- replayPill.className = "indicator-val status-green";
- } else {
- replayPill.innerHTML = window.voxI18n ? window.voxI18n.t("status_replay") : "POSSIBLE REPLAY DETECTED";
- replayPill.className = "indicator-val status-red animate-pulse";
- }
- }
- if (socReplayScore) socReplayScore.textContent = `${(d.livenessScore * 100).toFixed(0)}% Liveness`;
+        // 4. Replay Detection (Silero VAD)
+        const replayPill = document.getElementById("indicator-replay");
+        const socReplayScore = document.getElementById("soc-replay-score");
+        if (replayPill) {
+            if (d.livenessScore >= 0.50) {
+                replayPill.innerHTML = `<span class="status-badge-text">${window.voxI18n ? window.voxI18n.t("status_nominal") : "LIVE AUDIO"}</span><span class="status-badge-pct">${(d.livenessScore * 100).toFixed(0)}%</span>`;
+                replayPill.className = "indicator-val status-green";
+            } else {
+                replayPill.innerHTML = `<span class="status-badge-text">${window.voxI18n ? window.voxI18n.t("status_replay") : "REPLAY DETECTED"}</span><span class="status-badge-pct">${(d.livenessScore * 100).toFixed(0)}%</span>`;
+                replayPill.className = "indicator-val status-red animate-pulse";
+            }
+        }
+        if (socReplayScore) socReplayScore.textContent = `${(d.livenessScore * 100).toFixed(0)}% Liveness`;
 
- // 5. Conversation Context
- const contextPill = document.getElementById("indicator-context");
- if (contextPill) {
- if (d.contextRiskLevel === "CRITICAL") {
- contextPill.innerHTML = `RISK: CREDENTIAL HARVEST`;
- contextPill.className = "indicator-val status-red animate-pulse";
- } else if (d.contextRiskLevel === "HIGH") {
- contextPill.innerHTML = `RISK: FINANCIAL TRANSFER`;
- contextPill.className = "indicator-val status-red animate-pulse";
- } else {
- contextPill.innerHTML = `NORMAL CONVERSATION`;
- contextPill.className = "indicator-val status-green";
- }
- }
+        // 5. Conversation Context
+        const contextPill = document.getElementById("indicator-context");
+        if (contextPill) {
+            if (d.contextRiskLevel === "CRITICAL") {
+                contextPill.innerHTML = `<span class="status-badge-text">RISK: CREDENTIAL HARVEST</span><span class="status-badge-pct">HIGH</span>`;
+                contextPill.className = "indicator-val status-red animate-pulse";
+            } else if (d.contextRiskLevel === "HIGH") {
+                contextPill.innerHTML = `<span class="status-badge-text">RISK: FINANCIAL TRANSFER</span><span class="status-badge-pct">ALERT</span>`;
+                contextPill.className = "indicator-val status-red animate-pulse";
+            } else {
+                contextPill.innerHTML = `<span class="status-badge-text">NORMAL CONVERSATION</span>`;
+                contextPill.className = "indicator-val status-green single-metric";
+            }
+        }
 
- // 6. Action / Decision Banner (Rule-based Decision Matrix)
- const actionBanner = document.getElementById("indicator-decision-banner");
+        // 6. Action / Decision Banner (Rule-based Decision Matrix)
+        const actionBanner = document.getElementById("indicator-decision-banner");
  const decisionText = document.getElementById("indicator-decision-text");
  const decisionReason = document.getElementById("indicator-decision-reason");
 
@@ -1191,6 +1275,26 @@ class VoxShieldApp {
             );
         });
 
+        // Setting: Audio & Speech Diagnostics (Section 25)
+        document.getElementById("setting-item-audio-debug")?.addEventListener("click", () => {
+            const diag = this.audioEngine.diagnostics;
+            this.openSettingsModal(
+                "Audio & Speech Diagnostics",
+                `<p><strong>Real-Time Audio Diagnostics:</strong></p>
+                <div class="modal-stat-grid">
+                    <div class="modal-stat-box"><div class="modal-stat-val text-cyan">${diag.audioContextState}</div><div class="modal-stat-lbl">AudioContext</div></div>
+                    <div class="modal-stat-box"><div class="modal-stat-val ${diag.speechRecognitionStatus === 'listening' ? 'text-emerald' : 'text-cyan'}">${diag.speechRecognitionStatus}</div><div class="modal-stat-lbl">Speech Recognition</div></div>
+                </div>
+                <p><strong>Microphone Permission:</strong> <span style="font-weight:700;">${diag.permission}</span></p>
+                <p><strong>MediaStream Track:</strong> ${diag.streamActive ? "Active" : "Idle"} (${diag.trackLabel || "None"})</p>
+                <p><strong>Audio Frames Processed:</strong> ${diag.audioFramesReceived.toLocaleString()}</p>
+                <p><strong>Speech Recognition Locale:</strong> ${diag.activeLanguage}</p>
+                <p><strong>Transcript Events Received:</strong> ${diag.transcriptEventsCount}</p>
+                <p><strong>Last Transcript Time:</strong> ${diag.lastTranscriptTime}</p>
+                <p style="margin-top: 10px; font-size: 11px; color: var(--text-dim);">To open the live diagnostics HUD during a call, tap <strong>Audio Diagnostics</strong> in the Live Speech Transcript box.</p>`
+            );
+        });
+
         // Setting: About VoxShield
         document.getElementById("setting-item-about")?.addEventListener("click", () => {
             this.openSettingsModal(
@@ -1225,6 +1329,49 @@ class VoxShieldApp {
     closeSettingsModal() {
         const modal = document.getElementById("vox-settings-modal");
         if (modal) modal.classList.remove("open");
+    }
+
+    // --- Audio Diagnostics & Debug Methods (Sections 11 & 25) ---
+    startAudioDebugLoop() {
+        this.stopAudioDebugLoop();
+        this.debugInterval = setInterval(() => {
+            this.updateAudioDebugUI();
+        }, 400);
+    }
+
+    stopAudioDebugLoop() {
+        if (this.debugInterval) {
+            clearInterval(this.debugInterval);
+            this.debugInterval = null;
+        }
+    }
+
+    updateAudioDebugUI() {
+        if (!this.audioEngine || !this.audioEngine.diagnostics) return;
+        const diag = this.audioEngine.diagnostics;
+
+        const micIndicator = document.getElementById("audio-debug-mic-indicator");
+        if (micIndicator) {
+            micIndicator.textContent = this.audioEngine.isMicActive ? "MIC ACTIVE" : "MIC IDLE";
+            micIndicator.className = `debug-metric-val ${this.audioEngine.isMicActive ? "ok" : "warn"}`;
+        }
+
+        const setVal = (id, val, cls = "") => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.textContent = val;
+                if (cls) el.className = `debug-metric-val ${cls}`;
+            }
+        };
+
+        setVal("dbg-perm", diag.permission, diag.permission === "granted" ? "ok" : (diag.permission === "denied" ? "err" : "warn"));
+        setVal("dbg-stream", diag.streamActive ? "active" : "idle", diag.streamActive ? "ok" : "warn");
+        setVal("dbg-track", diag.trackEnabled ? "enabled" : "disabled", diag.trackEnabled ? "ok" : "warn");
+        setVal("dbg-ctx", diag.audioContextState, diag.audioContextState === "running" ? "ok" : "warn");
+        setVal("dbg-frames", diag.audioFramesReceived.toLocaleString());
+        setVal("dbg-rec", diag.speechRecognitionStatus, diag.speechRecognitionStatus === "listening" ? "ok" : (diag.speechRecognitionStatus === "unavailable" ? "err" : "warn"));
+        setVal("dbg-events", diag.transcriptEventsCount.toString());
+        setVal("dbg-locale", diag.activeLanguage || "en-IN");
     }
 }
 
