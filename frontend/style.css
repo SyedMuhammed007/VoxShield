@@ -3144,3 +3144,42 @@ body.mobile-app-theme:not(.dark-mode-active) .vox-modal-body .modal-stat-box {
     font-weight: 800;
     margin-left: 4px;
 }
+
+/* Development Language Detection Diagnostic Card (Section 5) */
+.live-speech-debug-card {
+    background: rgba(15, 23, 42, 0.75);
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 8px;
+    font-size: 11px;
+    box-sizing: border-box;
+}
+.speech-debug-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 2px 0;
+    gap: 8px;
+}
+.speech-debug-label {
+    color: var(--text-dim, #94a3b8);
+    font-weight: 600;
+    font-size: 10.5px;
+    white-space: nowrap;
+}
+.speech-debug-val {
+    color: var(--text-main, #f8fafc);
+    font-family: var(--font-mono, monospace);
+    font-weight: 600;
+    text-align: right;
+    word-break: break-word;
+}
+.speech-debug-val.native-script {
+    color: #38bdf8;
+    font-weight: 700;
+}
+.speech-debug-val.romanized-text {
+    color: #10b981;
+    font-weight: 700;
+}

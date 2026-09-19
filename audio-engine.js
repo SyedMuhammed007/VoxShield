@@ -191,13 +191,13 @@ class VoxAudioEngine {
 
         // Automatic Language Detection & Recognition State (Zero Manual Selector)
         this.autoDetectMode = true;
-        this.activeRecognitionLocale = "hi-IN"; // Reference Hindi pipeline as default base with Indian phonetic coverage
-        this.detectedLanguage = "en";
-        this.detectedLangLabel = "English";
+        this.candidateLocales = ["ta-IN", "hi-IN", "te-IN", "en-IN"];
+        this.probeIndex = 0;
+        this.activeRecognitionLocale = this.detectInitialLocale(); // Dynamic multi-language initial probe (Defaults to Tamil ta-IN, no fixed Hindi)
+        this.detectedLanguage = "ta";
+        this.detectedLangLabel = "Tamil";
         this.detectedConfidence = 0.95;
         this.lastUtteranceTime = 0;
-        this.probeIndex = 0;
-        this.candidateLocales = ["hi-IN", "ta-IN", "te-IN", "en-IN"];
 
         // Internal Audio Diagnostics Tracker (Section 11)
         const SpeechRec = typeof window !== "undefined" ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
@@ -221,6 +221,42 @@ class VoxAudioEngine {
         };
 
         this.loadVoices();
+    }
+
+    /**
+     * Autonomous Language Initializer (Section 2, 3, 14)
+     * Determines initial probe locale without assuming or hardcoding Hindi.
+     * Prioritizes recent conversation context, user UI locale, browser device languages, and defaults to Tamil (ta-IN).
+     */
+    detectInitialLocale() {
+        try {
+            const savedLang = localStorage.getItem("vox_detected_lang");
+            if (savedLang) {
+                const cfg = this.getLanguageConfig(savedLang);
+                if (cfg && cfg.locale) return cfg.locale;
+            }
+        } catch (e) {}
+
+        if (typeof window !== "undefined" && window.voxI18n && window.voxI18n.currentLang) {
+            const cur = window.voxI18n.currentLang;
+            if (cur === "ta") return "ta-IN";
+            if (cur === "hi") return "hi-IN";
+            if (cur === "te") return "te-IN";
+            if (cur === "en") return "en-IN";
+        }
+
+        if (typeof navigator !== "undefined") {
+            const langs = (navigator.languages && navigator.languages.length) ? navigator.languages : [navigator.language || ""];
+            for (const l of langs) {
+                const low = String(l).toLowerCase();
+                if (low.startsWith("ta")) return "ta-IN";
+                if (low.startsWith("hi")) return "hi-IN";
+                if (low.startsWith("te")) return "te-IN";
+            }
+        }
+
+        // Default: Start with Tamil (ta-IN) as primary locale (Section 1 & 2), never forcing Hindi
+        return "ta-IN";
     }
 
     getLanguageConfig(langInput) {
@@ -268,16 +304,16 @@ class VoxAudioEngine {
             return { code: "te", label: "Telugu", confidence: 0.95, locale: "te-IN" };
         }
 
-        // 2. Lexical patterns for common romanized phrases (Hindi, Tamil, Telugu)
+        // 2. Lexical patterns for common spoken phrases (Tamil, Hindi, Telugu)
         const lower = str.toLowerCase();
-        if (/\b(vanakkam|epdi|irukinga|irukeenga|nandri|theriyum|solunga|enna|romba|aama|illai|nalla|kaapathunga)\b/.test(lower)) {
-            return { code: "ta", label: "Tamil", confidence: 0.93, locale: "ta-IN" };
+        if (/\b(vanakkam|epdi|irukinga|irukeenga|nandri|theriyum|solunga|enna|panreenga|pandreenga|poreenga|poareenga|saapitteengala|saapiteengala|neenga|enga|inga|romba|aama|illai|nalla|kaapathunga)\b/.test(lower)) {
+            return { code: "ta", label: "Tamil", confidence: 0.95, locale: "ta-IN" };
         }
         if (/\b(namaste|kaise|hai|kya|bhai|kaha|rahe|ho|shukriya|kripya|bolo|theek|paisa|rupaye|madad)\b/.test(lower)) {
-            return { code: "hi", label: "Hindi", confidence: 0.94, locale: "hi-IN" };
+            return { code: "hi", label: "Hindi", confidence: 0.95, locale: "hi-IN" };
         }
-        if (/\b(namaskaram|ela|unnaru|bagunnara|enti|cheppandi|meeru|dhanyavadalu|dabbu|sahayam)\b/.test(lower)) {
-            return { code: "te", label: "Telugu", confidence: 0.93, locale: "te-IN" };
+        if (/\b(namaskaram|ela|unnaru|unnava|unnavu|bagunnara|enti|cheppandi|meeru|dhanyavadalu|dabbu|sahayam)\b/.test(lower)) {
+            return { code: "te", label: "Telugu", confidence: 0.94, locale: "te-IN" };
         }
 
         return { code: "en", label: "English", confidence: 0.95, locale: "en-IN" };
@@ -477,8 +513,8 @@ class VoxAudioEngine {
                 this.micSource.connect(this.analyser);
             }
 
-            // Start Autonomous Multi-Language Speech Recognition Pipeline
-            this.startSpeechRecognition();
+            // Start Autonomous Multi-Language Speech Recognition Pipeline via isolated interface
+            await this.transcribeMultilingual(this.micStream);
 
             return true;
         } catch (err) {
@@ -490,8 +526,27 @@ class VoxAudioEngine {
         }
     }
 
+    /**
+     * Unified Multilingual Transcription Provider Interface (Section 4 & 14)
+     * Isolates the transcription provider behind a standard interface.
+     * Coordinates raw audio stream input, language identification, speech-to-text, and Latin transliteration.
+     * @param {MediaStream} [audioStream] - Raw audio stream from microphone or input device
+     * @param {Object} [options] - Optional configuration overrides
+     * @returns {Promise<boolean>}
+     */
+    async transcribeMultilingual(audioStream, options = {}) {
+        console.log("[VoxAudioEngine] transcribeMultilingual activated with stream");
+        if (audioStream && !this.micStream) {
+            this.micStream = audioStream;
+            this.isMicActive = true;
+            this.isRecognitionIntentionallyStopped = false;
+        }
+        const targetLocale = options.forceLocale || this.activeRecognitionLocale || this.detectInitialLocale();
+        return this.startSpeechRecognition(targetLocale);
+    }
+
     startTranscription() {
-        return this.startSpeechRecognition();
+        return this.transcribeMultilingual(this.micStream);
     }
 
     /**
@@ -502,7 +557,7 @@ class VoxAudioEngine {
         const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
         this.diagnostics.speechRecognitionSupported = !!SpeechRec;
 
-        const localeToUse = forceLocale || this.activeRecognitionLocale || "hi-IN";
+        const localeToUse = forceLocale || this.activeRecognitionLocale || this.detectInitialLocale();
         this.activeRecognitionLocale = localeToUse;
 
         if (!SpeechRec) {
@@ -574,6 +629,10 @@ class VoxAudioEngine {
                 // 2. Seamless locale adaptation for multi-sentence continuity & code-switching
                 if (langInfo.locale && langInfo.locale !== rec.lang) {
                     this.activeRecognitionLocale = langInfo.locale;
+                    try { localStorage.setItem("vox_detected_lang", langInfo.code); } catch(e) {}
+                    if (this.candidateLocales.includes(langInfo.locale)) {
+                        this.probeIndex = this.candidateLocales.indexOf(langInfo.locale);
+                    }
                 }
 
                 // 3. Latin/English-Letter Transliteration Layer (Section 2, 3, 5, 20)

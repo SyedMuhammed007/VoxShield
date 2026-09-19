@@ -203,6 +203,26 @@ class VoxShieldApp {
                 const latinText = segmentData.transliteratedText || segmentData.text;
                 this.detectionEngine.processTranscript(latinText, segmentData.isFinal);
                 this.addTranscriptSegment(segmentData);
+
+                // Update Development Language Detection Diagnostic Card (Section 5)
+                const dbgLang = document.getElementById("dbg-live-lang");
+                const dbgConf = document.getElementById("dbg-live-conf");
+                const dbgOrig = document.getElementById("dbg-live-original");
+                const dbgRom = document.getElementById("dbg-live-romanized");
+
+                if (dbgLang) {
+                    dbgLang.textContent = segmentData.detectedLangLabel || (segmentData.detectedLanguage ? segmentData.detectedLanguage.toUpperCase() : "Tamil");
+                }
+                if (dbgConf) {
+                    const confVal = Math.round((segmentData.confidence || 0.95) * 100);
+                    dbgConf.textContent = `${confVal}%`;
+                }
+                if (dbgOrig) {
+                    dbgOrig.textContent = segmentData.originalText || "--";
+                }
+                if (dbgRom) {
+                    dbgRom.textContent = latinText || "--";
+                }
             } else {
                 const rawText = String(segmentData);
                 this.detectionEngine.processTranscript(rawText, true);

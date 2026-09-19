@@ -401,6 +401,26 @@
                                         <span class="transcript-auto-text">● AUTOMATIC LANGUAGE DETECTION</span>
                                     </div>
 
+                                    <!-- Development Language Detection Diagnostic Card (Section 5) -->
+                                    <div id="live-speech-debug-card" class="live-speech-debug-card">
+                                        <div class="speech-debug-row">
+                                            <span class="speech-debug-label">Detected language:</span>
+                                            <span id="dbg-live-lang" class="speech-debug-val">Listening (Auto)...</span>
+                                        </div>
+                                        <div class="speech-debug-row">
+                                            <span class="speech-debug-label">Language confidence:</span>
+                                            <span id="dbg-live-conf" class="speech-debug-val">--</span>
+                                        </div>
+                                        <div class="speech-debug-row">
+                                            <span class="speech-debug-label">Original recognition:</span>
+                                            <span id="dbg-live-original" class="speech-debug-val native-script">--</span>
+                                        </div>
+                                        <div class="speech-debug-row">
+                                            <span class="speech-debug-label">Romanized:</span>
+                                            <span id="dbg-live-romanized" class="speech-debug-val romanized-text">--</span>
+                                        </div>
+                                    </div>
+
                                     <div id="transcript-stream" class="transcript-scroll-area">
                                         <div class="transcript-empty" data-i18n="transcript_empty">Audio idle. Voice transcription streams here in real-time.</div>
                                     </div>
