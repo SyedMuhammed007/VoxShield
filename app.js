@@ -26,6 +26,7 @@ class VoxShieldApp {
  this.initDOM();
  this.initWebSocket();
  this.setupAudioListeners();
+        this.transcriptSegments = [];
         window.voxApp = this;
         window.app = this;
  }
@@ -39,8 +40,10 @@ class VoxShieldApp {
         // Environment Theme Switcher (Light / Dark) - Default is Executive Light Theme
         const updateThemeUI = (isDark) => {
             const topbarBtn = document.getElementById("btn-theme-toggle");
+            const mobileBtn = document.getElementById("btn-theme-toggle-mobile");
             const settingsBtn = document.getElementById("btn-theme-toggle-settings");
             const topbarLabel = document.getElementById("theme-btn-text");
+            const mobileLabel = document.getElementById("mobile-theme-text");
             const settingsTitle = document.getElementById("settings-theme-title");
             const settingsLabel = document.getElementById("settings-switch-label");
 
@@ -50,6 +53,13 @@ class VoxShieldApp {
                 if (sun) sun.style.display = isDark ? "none" : "inline";
                 if (moon) moon.style.display = isDark ? "inline" : "none";
                 if (topbarLabel) topbarLabel.textContent = isDark ? "Dark Mode" : "Light Mode";
+            }
+            if (mobileBtn) {
+                const sun = mobileBtn.querySelector(".icon-sun");
+                const moon = mobileBtn.querySelector(".icon-moon");
+                if (sun) sun.style.display = isDark ? "none" : "inline";
+                if (moon) moon.style.display = isDark ? "inline" : "none";
+                if (mobileLabel) mobileLabel.textContent = isDark ? "Dark" : "Light";
             }
 
             if (settingsBtn) {
@@ -84,6 +94,8 @@ class VoxShieldApp {
         document.getElementById("btn-theme-toggle")?.addEventListener("click", handleThemeToggle);
         document.getElementById("btn-theme-toggle-mobile")?.addEventListener("click", handleThemeToggle);
         document.getElementById("btn-theme-toggle-settings")?.addEventListener("click", handleThemeToggle);
+
+        this.setupSettingsInteractions();
 
  // Navigation buttons
  document.querySelectorAll("[data-screen]").forEach(btn => {
@@ -155,7 +167,7 @@ class VoxShieldApp {
  // Speech recognition live transcription
  this.audioEngine.onTranscriptCallback = (text, isFinal) => {
  this.detectionEngine.processTranscript(text, isFinal);
- this.updateTranscriptUI(text, isFinal);
+        this.addTranscriptSegment("user", text, isFinal);
  this.updateTelemetryUI();
  };
  }
@@ -293,7 +305,7 @@ class VoxShieldApp {
 
  // Transcribe caller speech into UI
  this.detectionEngine.processTranscript(item.text, true);
- this.updateTranscriptUI(item.text, true);
+            this.addTranscriptSegment("caller", item.text, true);
  this.updateTelemetryUI();
 
  // Speak out loud with realistic voice profile in active language
@@ -556,28 +568,75 @@ class VoxShieldApp {
  this.updateTelemetryUI();
  }
 
- updateTranscriptUI(text, isFinal) {
- const stream = document.getElementById("transcript-stream");
- if (!stream) return;
+    addTranscriptSegment(speaker, text, isFinal) {
+        if (!text || !text.trim()) return;
+        text = text.trim();
 
- // Highlight financial/urgent keywords
- let safeText = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
- const highlightRegex = /(transfer|wire|rupees|inr|lakh|thousand|emergency|card blocked|otp|password|immediate|vendor|इमरजेंसी|पैसे|रुपये|ट्रांसफर|ओटीपी|पासवर्ड|मुसीबत|அவசரம்|பணம்|ரூபாய்|கடவுச்சொல்|ఎమర్జెన్సీ|డబ్బు|రూపాయలు|ఓటీపీ|ఆపద|বিপদ|টাকা|ট্রান্সফার|ওটিপি)/gi;
- safeText = safeText.replace(highlightRegex, `<mark class="threat-keyword">$1</mark>`);
+        // Check if updating an active interim speech segment
+        const lastSeg = this.transcriptSegments[this.transcriptSegments.length - 1];
+        if (lastSeg && lastSeg.speaker === speaker && !lastSeg.isFinal) {
+            lastSeg.text = text;
+            lastSeg.isFinal = !!isFinal;
+            lastSeg.timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        } else {
+            this.transcriptSegments.push({
+                id: Date.now() + Math.random(),
+                speaker: speaker, // "caller" or "user"
+                text: text,
+                isFinal: !!isFinal,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+            });
+        }
 
- const msgDiv = document.createElement("div");
- msgDiv.className = "transcript-msg caller-line";
- msgDiv.innerHTML = `<span class="time">${new Date().toLocaleTimeString()}</span> <span class="text">${safeText}</span>`;
- stream.appendChild(msgDiv);
- stream.scrollTop = stream.scrollHeight;
+        this.renderTranscriptUI();
+    }
 
- // Also update SOC transcript
- const socStream = document.getElementById("soc-transcript-stream");
- if (socStream) {
- socStream.appendChild(msgDiv.cloneNode(true));
- socStream.scrollTop = socStream.scrollHeight;
- }
- }
+    renderTranscriptUI() {
+        const stream = document.getElementById("transcript-stream");
+        if (!stream) return;
+
+        if (!this.transcriptSegments || this.transcriptSegments.length === 0) {
+            stream.innerHTML = `<div class="transcript-empty" data-i18n="transcript_empty">Audio idle. Voice transcription streams here in real-time.</div>`;
+            return;
+        }
+
+        // Stick-to-bottom scroll detection
+        const isNearBottom = stream.scrollHeight - stream.scrollTop - stream.clientHeight < 70;
+        const highlightRegex = /(transfer|wire|rupees|inr|lakh|thousand|emergency|card blocked|otp|password|immediate|vendor|इमरजेंसी|पैसे|रुपये|ट्रांसफर|ओटीपी|पासवर्ड|मुसीबत|அவசரம்|பணம்|ரூபாய்|கடவுச்சொல்|ఎమర్జెన్సీ|డబ్బు|రూపాయలు|ఓటీపీ|ఆపద|বিপদ|টাকা|ট্রান্সফার|ওটিপি)/gi;
+
+        let html = "";
+        this.transcriptSegments.forEach(seg => {
+            let safeText = seg.text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            safeText = safeText.replace(highlightRegex, `<mark class="threat-keyword">$1</mark>`);
+            const speakerClass = seg.speaker === "user" ? "user-line" : "caller-line";
+            const tagClass = seg.speaker === "user" ? "tag-user" : "tag-caller";
+            const speakerName = seg.speaker === "user" ? "YOU" : "CALLER";
+
+            html += `<div class="transcript-msg ${speakerClass}">
+                <span class="transcript-speaker-tag ${tagClass}">${speakerName}</span>
+                <span class="text">${safeText}</span>
+                <span class="transcript-timestamp">${seg.timestamp}</span>
+            </div>`;
+        });
+
+        stream.innerHTML = html;
+
+        if (isNearBottom) {
+            stream.scrollTop = stream.scrollHeight;
+        }
+
+        // Synchronize with SOC inspector transcript drawer if present
+        const socStream = document.getElementById("soc-transcript-stream");
+        if (socStream) {
+            const socNearBottom = socStream.scrollHeight - socStream.scrollTop - socStream.clientHeight < 70;
+            socStream.innerHTML = html;
+            if (socNearBottom) socStream.scrollTop = socStream.scrollHeight;
+        }
+    }
+
+    updateTranscriptUI(text, isFinal, speaker = "caller") {
+        this.addTranscriptSegment(speaker, text, isFinal);
+    }
 
  updateTelemetryUI() {
  const d = this.detectionEngine;
@@ -1018,6 +1077,155 @@ class VoxShieldApp {
  : window.voxI18n.t("theme_light_title");
  }
  }
+
+    // --- Settings & Modal Dialog Handlers ---
+    setupSettingsInteractions() {
+        // Modal close button and backdrop click
+        const modal = document.getElementById("vox-settings-modal");
+        const closeBtn = document.getElementById("vox-modal-close");
+        if (closeBtn) closeBtn.addEventListener("click", () => this.closeSettingsModal());
+        if (modal) {
+            modal.addEventListener("click", (e) => {
+                if (e.target === modal) this.closeSettingsModal();
+            });
+        }
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape") this.closeSettingsModal();
+        });
+
+        // Toggle Switch: Replay Filter
+        const filterRow = document.getElementById("setting-item-filter");
+        const filterSwitch = document.getElementById("switch-filter");
+        const savedFilter = localStorage.getItem("vox_setting_replay_filter");
+        if (filterSwitch && savedFilter === "false") {
+            filterSwitch.classList.remove("active");
+        }
+        if (filterRow && filterSwitch) {
+            filterRow.addEventListener("click", () => {
+                const isActive = filterSwitch.classList.toggle("active");
+                localStorage.setItem("vox_setting_replay_filter", isActive ? "true" : "false");
+                console.log(`[VoxShield] Acoustic Replay Filter set to: ${isActive}`);
+            });
+        }
+
+        // Setting: AASIST-v2 Threshold
+        document.getElementById("setting-item-aasist")?.addEventListener("click", () => {
+            this.openSettingsModal(
+                "AASIST-v2 Synthesis Detection",
+                `<p><strong>AASIST-v2 (Audio Anti-Spoofing using Integrated Spectro-Temporal Graph Attention Networks)</strong> detects synthetic voice artifacts, neural vocoder phase errors, and algorithmic anomalies.</p>
+                <div class="modal-stat-grid">
+                    <div class="modal-stat-box"><div class="modal-stat-val text-cyan">0.75</div><div class="modal-stat-lbl">Strict Threshold</div></div>
+                    <div class="modal-stat-box"><div class="modal-stat-val text-emerald">&lt; 120ms</div><div class="modal-stat-lbl">Inference Latency</div></div>
+                </div>
+                <p>Operating cutoff set to <strong>0.75 Strict</strong>. If synthetic probability exceeds this threshold for 3 consecutive audio chunks, high-severity warning banners and audio alerts are instantly triggered.</p>`
+            );
+        });
+
+        // Setting: ECAPA Speaker Verification
+        document.getElementById("setting-item-ecapa")?.addEventListener("click", () => {
+            this.openSettingsModal(
+                "ECAPA-TDNN Speaker Verification",
+                `<p><strong>ECAPA-TDNN (Emphasized Channel Attention, Propagation and Aggregation)</strong> extracts 192-dimensional acoustic voice embeddings to attest enrolled caller biometric identity.</p>
+                <div class="modal-stat-grid">
+                    <div class="modal-stat-box"><div class="modal-stat-val text-cyan">0.70</div><div class="modal-stat-lbl">Cosine Match Target</div></div>
+                    <div class="modal-stat-box"><div class="modal-stat-val text-emerald">192-d</div><div class="modal-stat-lbl">Vector Space</div></div>
+                </div>
+                <p>Calls from enrolled contacts are continually matched against local AES-256 encrypted vector templates. Deviations trigger FIDO2 out-of-band verification challenges.</p>`
+            );
+        });
+
+        // Setting: Zero Audio Retention (DPDP Act)
+        document.getElementById("setting-item-retention")?.addEventListener("click", () => {
+            this.openSettingsModal(
+                "DPDP Act 2023 Compliance & Ephemeral RAM",
+                `<p>VoxShield is fully compliant with India's <strong>Digital Personal Data Protection (DPDP) Act 2023</strong> and international zero-knowledge data minimization principles.</p>
+                <div class="modal-stat-grid">
+                    <div class="modal-stat-box"><div class="modal-stat-val text-emerald">0 Bytes</div><div class="modal-stat-lbl">Audio Saved to Disk</div></div>
+                    <div class="modal-stat-box"><div class="modal-stat-val text-cyan">RAM Only</div><div class="modal-stat-lbl">Buffer Lifecycle</div></div>
+                </div>
+                <p>Raw voice data is processed solely in short volatile memory rings and permanently purged the millisecond a call terminates. Only anonymous threat telemetry and cryptographic event hashes are optionally stored locally.</p>`
+            );
+        });
+
+        // Setting: Auto-Purge TTL
+        document.getElementById("setting-item-purge")?.addEventListener("click", () => {
+            this.openSettingsModal(
+                "Incident Log Auto-Purge Lifecycle",
+                `<p>Configured cryptographic retention policy enforces automated lifecycle eviction of forensic threat logs.</p>
+                <div class="modal-stat-grid">
+                    <div class="modal-stat-box"><div class="modal-stat-val text-cyan">365 Days</div><div class="modal-stat-lbl">Maximum TTL</div></div>
+                    <div class="modal-stat-box"><div class="modal-stat-val text-emerald">SHA-256</div><div class="modal-stat-lbl">Chain of Custody</div></div>
+                </div>
+                <p>Threat logs older than 365 days are securely overwritten. You may also manually clear local logs at any time using the <em>Clear Incidents</em> option.</p>`
+            );
+        });
+
+        // Setting: Persistent Engine Storage
+        document.getElementById("setting-item-storage")?.addEventListener("click", () => {
+            this.openSettingsModal(
+                "Local Encrypted Database Vault",
+                `<p>VoxShield utilizes high-performance browser LocalStorage coupled with client-side vector hashing for zero-cloud privacy.</p>
+                <div class="modal-stat-grid">
+                    <div class="modal-stat-box"><div class="modal-stat-val text-emerald">Active</div><div class="modal-stat-lbl">Vault Status</div></div>
+                    <div class="modal-stat-box"><div class="modal-stat-val text-cyan">Client-Side</div><div class="modal-stat-lbl">Architecture</div></div>
+                </div>
+                <p>No biometric data is sent to external clouds or third-party servers. All voiceprint templates and security rules remain in this sandboxed client environment.</p>`
+            );
+        });
+
+        // Setting: Enrolled Contacts
+        document.getElementById("setting-item-contacts")?.addEventListener("click", () => {
+            this.openSettingsModal(
+                "Enrolled Contacts Vault",
+                `<p>Your enrolled biometric contact profiles are secured in local memory.</p>
+                <p>To view, enroll, or test voiceprint templates for your trusted circle, tap the <strong>Circle</strong> tab in the bottom navigation.</p>`
+            );
+        });
+
+        // Setting: Forensic Incidents
+        document.getElementById("setting-item-incidents")?.addEventListener("click", () => {
+            this.openSettingsModal(
+                "Forensic Threats & Incidents",
+                `<p>Threat logs capture detected clone attempts, synthesis anomalies, and suspicious semantic coercion patterns.</p>
+                <p>To inspect full forensic audio spectrums and incident details, tap the <strong>Incidents</strong> tab.</p>`
+            );
+        });
+
+        // Setting: About VoxShield
+        document.getElementById("setting-item-about")?.addEventListener("click", () => {
+            this.openSettingsModal(
+                "About VoxShield",
+                `<p><strong>VoxShield v3.4 Production</strong> is an enterprise-grade voice security and anti-impersonation system developed for India Smart India Hackathon (SIH).</p>
+                <div class="modal-stat-grid">
+                    <div class="modal-stat-box"><div class="modal-stat-val text-cyan">AASIST-v2</div><div class="modal-stat-lbl">Neural Anti-Spoof</div></div>
+                    <div class="modal-stat-box"><div class="modal-stat-val text-emerald">ECAPA-TDNN</div><div class="modal-stat-lbl">Speaker Verification</div></div>
+                </div>
+                <p><strong>Core Capabilities:</strong></p>
+                <ul style="margin-left: 18px; margin-bottom: 12px;">
+                    <li>Sub-120ms real-time neural clone detection</li>
+                    <li>FIDO2 Out-of-band cross-verification dispatch</li>
+                    <li>Multi-lingual support (English, Hindi, Tamil, Telugu, Bengali)</li>
+                    <li>Full DPDP Act 2023 compliance with zero audio storage</li>
+                </ul>`
+            );
+        });
+    }
+
+    openSettingsModal(title, htmlContent) {
+        const modal = document.getElementById("vox-settings-modal");
+        const titleEl = document.getElementById("vox-modal-title");
+        const bodyEl = document.getElementById("vox-modal-body");
+        if (!modal || !titleEl || !bodyEl) return;
+
+        titleEl.textContent = title;
+        bodyEl.innerHTML = htmlContent;
+        modal.classList.add("open");
+    }
+
+    closeSettingsModal() {
+        const modal = document.getElementById("vox-settings-modal");
+        if (modal) modal.classList.remove("open");
+    }
 }
 
 window.addEventListener("DOMContentLoaded", () => {

@@ -102,8 +102,20 @@
                                     </div>
                                     <div class="mobile-header-actions">
                                         <button id="btn-theme-toggle-mobile" class="mobile-theme-pill-btn" title="Toggle Light/Dark Theme">
-                                            <span class="icon-sun">☀️</span>
-                                            <span class="icon-moon" style="display: none;">🌙</span>
+                                            <svg class="icon-sun" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <circle cx="12" cy="12" r="5"></circle>
+                                                <line x1="12" y1="1" x2="12" y2="3"></line>
+                                                <line x1="12" y1="21" x2="12" y2="23"></line>
+                                                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                                                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                                                <line x1="1" y1="12" x2="3" y2="12"></line>
+                                                <line x1="21" y1="12" x2="23" y2="12"></line>
+                                                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                                                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                                            </svg>
+                                            <svg class="icon-moon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
+                                                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                                            </svg>
                                             <span id="mobile-theme-text">Light</span>
                                         </button>
                                         <div class="protection-switch-ui" title="Call Shield Active">
@@ -484,39 +496,39 @@
 
                             <div class="mobile-settings-group">
                                 <span class="settings-group-label" data-i18n="sec_defense">DEFENSE ENGINE</span>
-                                <div class="settings-item-row">
+                                <div class="settings-item-row interactive-setting" id="setting-item-aasist" role="button" tabindex="0" title="Click to view neural threshold specs">
                                     <div class="setting-text">
                                         <span class="setting-title" data-i18n="aasist_title">AASIST-v2 Synthesis Threshold</span>
                                         <span class="setting-desc" data-i18n="aasist_desc">Alert cutoff for phase vocoder anomalies</span>
                                     </div>
                                     <span class="setting-val-tag">0.75 (Strict)</span>
                                 </div>
-                                <div class="settings-item-row">
+                                <div class="settings-item-row interactive-setting" id="setting-item-ecapa" role="button" tabindex="0" title="Click to view speaker verification specs">
                                     <div class="setting-text">
                                         <span class="setting-title" data-i18n="ecapa_title">ECAPA Speaker Verification</span>
                                         <span class="setting-desc" data-i18n="ecapa_desc">Cosine distance required for pass</span>
                                     </div>
                                     <span class="setting-val-tag">0.70 Match</span>
                                 </div>
-                                <div class="settings-item-row">
+                                <div class="settings-item-row interactive-setting" id="setting-item-filter" role="button" tabindex="0" title="Click to toggle acoustic replay filter">
                                     <div class="setting-text">
                                         <span class="setting-title" data-i18n="filter_title">Acoustic Replay Filter</span>
                                         <span class="setting-desc" data-i18n="filter_desc">Detect loudspeaker frequency cutoffs</span>
                                     </div>
-                                    <span class="setting-val-tag">8 kHz Active</span>
+                                    <div class="vox-switch active" id="switch-filter" title="Toggle Replay Filter"></div>
                                 </div>
                             </div>
 
                             <div class="mobile-settings-group">
                                 <span class="settings-group-label" data-i18n="sec_privacy">PRIVACY & COMPLIANCE</span>
-                                <div class="settings-item-row">
+                                <div class="settings-item-row interactive-setting" id="setting-item-retention" role="button" tabindex="0" title="Click to view DPDP Act zero-retention details">
                                     <div class="setting-text">
                                         <span class="setting-title" data-i18n="retention_title">Zero Audio Retention</span>
                                         <span class="setting-desc" data-i18n="retention_desc">DPDP Act 2023 ephemeral RAM buffer</span>
                                     </div>
                                     <span class="status-badge-green">ENFORCED</span>
                                 </div>
-                                <div class="settings-item-row">
+                                <div class="settings-item-row interactive-setting" id="setting-item-purge" role="button" tabindex="0" title="Click to view auto-purge policy">
                                     <div class="setting-text">
                                         <span class="setting-title" data-i18n="purge_title">Log Auto-Purge TTL</span>
                                         <span class="setting-desc" data-i18n="purge_desc">Cryptographic incident metadata expiry</span>
@@ -524,24 +536,25 @@
                                     <span class="setting-val-tag">365 Days</span>
                                 </div>
                             </div>
-                                                    <!-- Group 4: Local Database & Storage -->
+
+                            <!-- Group 4: Local Database & Storage -->
                             <div class="mobile-settings-group">
                                 <span class="settings-group-label">LOCAL DATABASE & STORAGE</span>
-                                <div class="settings-item-row">
+                                <div class="settings-item-row interactive-setting" id="setting-item-storage" role="button" tabindex="0" title="Click to view persistent engine details">
                                     <div class="setting-text">
                                         <span class="setting-title">Persistent Engine</span>
                                         <span class="setting-desc">Browser LocalStorage + AES-256 Vector Vault</span>
                                     </div>
                                     <span class="status-badge-green" id="db-status-badge">CONNECTED</span>
                                 </div>
-                                <div class="settings-item-row">
+                                <div class="settings-item-row interactive-setting" id="setting-item-contacts" role="button" tabindex="0" title="Click to inspect enrolled circle profiles">
                                     <div class="setting-text">
                                         <span class="setting-title">Enrolled Contacts Stored</span>
                                         <span class="setting-desc">Encrypted voiceprint profiles</span>
                                     </div>
                                     <span class="setting-val-tag" id="db-contacts-count">3 Contacts</span>
                                 </div>
-                                <div class="settings-item-row">
+                                <div class="settings-item-row interactive-setting" id="setting-item-incidents" role="button" tabindex="0" title="Click to inspect logged incident stats">
                                     <div class="setting-text">
                                         <span class="setting-title">Forensic Incidents Logged</span>
                                         <span class="setting-desc">Total threats recorded locally</span>
@@ -553,6 +566,18 @@
                                         <button id="btn-clear-incidents" class="btn-secondary" style="flex: 1; padding: 7px 10px; font-size: 11px; cursor: pointer; border-radius: 6px;">Clear Incidents</button>
                                         <button id="btn-reset-db" class="btn-secondary" style="flex: 1; padding: 7px 10px; font-size: 11px; cursor: pointer; border-radius: 6px;">Reset Demo Data</button>
                                     </div>
+                                </div>
+                            </div>
+
+                            <!-- Group 5: System & Architecture -->
+                            <div class="mobile-settings-group">
+                                <span class="settings-group-label">SYSTEM & ARCHITECTURE</span>
+                                <div class="settings-item-row interactive-setting" id="setting-item-about" role="button" tabindex="0" title="Click to view VoxShield architecture and version">
+                                    <div class="setting-text">
+                                        <span class="setting-title">About VoxShield</span>
+                                        <span class="setting-desc">Real-Time Voice Biometric Firewall v3.4</span>
+                                    </div>
+                                    <span class="setting-val-tag">SIH'26</span>
                                 </div>
                             </div>
                         </section>
@@ -775,5 +800,19 @@
     <script src="audio-engine.js"></script>
     <script src="detection-engine.js"></script>
     <script src="app.js"></script>
+
+    <!-- Global Interactive Settings Modal Sheet -->
+    <div id="vox-settings-modal" class="vox-modal-overlay">
+        <div class="vox-modal-sheet">
+            <div class="vox-modal-header">
+                <h3 id="vox-modal-title" class="vox-modal-title">Setting Details</h3>
+                <button id="vox-modal-close" class="vox-modal-close-btn" aria-label="Close modal">&times;</button>
+            </div>
+            <div id="vox-modal-body" class="vox-modal-body">
+                <!-- Content dynamically populated -->
+            </div>
+        </div>
+    </div>
+
 </body>
 </html>
