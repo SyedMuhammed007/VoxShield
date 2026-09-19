@@ -215,6 +215,13 @@ class VoxAudioEngine {
         return TRANSCRIPTION_LANGUAGES.english;
     }
 
+    setLanguage(langCode) {
+        const langConfig = this.getLanguageConfig(langCode);
+        this.targetLang = langConfig.locale;
+        this.loadVoices();
+        return langConfig;
+    }
+
     /**
      * Automatic Language Identification from Transcript & Audio Features (Section 2 & 6)
      * Detects Tamil, Hindi, Telugu, and English.
@@ -388,6 +395,19 @@ class VoxAudioEngine {
                 this.diagnostics.audioContextState = this.ctx ? this.ctx.state : "closed";
             }).catch(e => console.warn("[VoxAudioEngine] Context resume error:", e));
         }
+    }
+
+    async resumeContext() {
+        this.initContext();
+        if (this.ctx && this.ctx.state === "suspended") {
+            try {
+                await this.ctx.resume();
+                this.diagnostics.audioContextState = this.ctx.state;
+            } catch(e) {
+                console.warn("[VoxAudioEngine] Context resume error:", e);
+            }
+        }
+        return this.ctx ? this.ctx.state : "uninitialized";
     }
 
     loadVoices() {

@@ -668,7 +668,7 @@ class VoxI18n {
         });
 
         // 4. Update audio engine speech recognition language and voices
-        if (window.app && window.app.audioEngine) {
+        if (window.app && window.app.audioEngine && typeof window.app.audioEngine.setLanguage === "function") {
             window.app.audioEngine.setLanguage(lang);
         }
 
