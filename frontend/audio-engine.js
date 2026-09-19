@@ -6,6 +6,41 @@
  * Enhanced for mobile browser compatibility (Android Chrome, iOS Safari, desktop).
  */
 
+/**
+ * Central Language Configuration for Live Transcription & Voice Analysis (Section 3)
+ * Reference: Preserves exact working Hindi configuration ('hi-IN') and standardizes across languages.
+ */
+const TRANSCRIPTION_LANGUAGES = {
+    english: {
+        label: "English",
+        locale: "en-IN",
+        key: "english",
+        code: "en"
+    },
+    hindi: {
+        label: "Hindi",
+        locale: "hi-IN",
+        key: "hindi",
+        code: "hi"
+    },
+    tamil: {
+        label: "Tamil",
+        locale: "ta-IN",
+        key: "tamil",
+        code: "ta"
+    },
+    telugu: {
+        label: "Telugu",
+        locale: "te-IN",
+        key: "telugu",
+        code: "te"
+    }
+};
+
+if (typeof window !== "undefined") {
+    window.TRANSCRIPTION_LANGUAGES = TRANSCRIPTION_LANGUAGES;
+}
+
 class VoxAudioEngine {
     constructor() {
         this.ctx = null;
@@ -23,6 +58,7 @@ class VoxAudioEngine {
         this.currentUtterance = null;
         this.onAudioFeatureCallback = null;
         this.onTranscriptCallback = null;
+        this.onTranscriptionErrorCallback = null;
         this.onDiagnosticsUpdate = null;
         this.animFrameId = null;
         this.voices = [];
@@ -31,9 +67,12 @@ class VoxAudioEngine {
         this.recognitionRestartTimer = null;
         this.isRecognitionIntentionallyStopped = false;
 
-        // Multi-language recognition & synthesis configuration
-        this.currentLangCode = localStorage.getItem("vox_lang") || "en";
-        this.targetLang = this.mapLanguageCode(this.currentLangCode);
+        // Multi-language recognition & synthesis configuration (Section 3 & 4)
+        const initialLang = localStorage.getItem("vox_transcription_lang") || localStorage.getItem("vox_lang") || "english";
+        const langConfig = this.getLanguageConfig(initialLang);
+        this.currentTranscriptionLangKey = langConfig.key;
+        this.currentLangCode = langConfig.code;
+        this.targetLang = langConfig.locale;
 
         // Internal Audio Diagnostics Tracker (Sections 11 & 25)
         const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -56,31 +95,43 @@ class VoxAudioEngine {
         this.loadVoices();
     }
 
+    getLanguageConfig(langInput) {
+        if (!langInput) return TRANSCRIPTION_LANGUAGES.english;
+        const lower = String(langInput).trim().toLowerCase();
+        if (TRANSCRIPTION_LANGUAGES[lower]) return TRANSCRIPTION_LANGUAGES[lower];
+        for (const k in TRANSCRIPTION_LANGUAGES) {
+            const item = TRANSCRIPTION_LANGUAGES[k];
+            if (item.code === lower || item.locale.toLowerCase() === lower || item.label.toLowerCase() === lower) {
+                return item;
+            }
+        }
+        if (lower.startsWith("ta")) return TRANSCRIPTION_LANGUAGES.tamil;
+        if (lower.startsWith("hi")) return TRANSCRIPTION_LANGUAGES.hindi;
+        if (lower.startsWith("te")) return TRANSCRIPTION_LANGUAGES.telugu;
+        if (lower.startsWith("en")) return TRANSCRIPTION_LANGUAGES.english;
+        return TRANSCRIPTION_LANGUAGES.english;
+    }
+
     mapLanguageCode(langCode) {
-        const langMap = {
-            "en": "en-IN",
-            "hi": "hi-IN",
-            "ta": "ta-IN",
-            "te": "te-IN",
-            "bn": "bn-IN"
-        };
-        return langMap[langCode] || "en-IN";
+        return this.getLanguageConfig(langCode).locale;
     }
 
     setLanguage(langCode) {
-        this.currentLangCode = langCode || "en";
-        const mapped = this.mapLanguageCode(this.currentLangCode);
-        this.targetLang = mapped;
-        this.diagnostics.activeLanguage = mapped;
+        const langConfig = this.getLanguageConfig(langCode);
+        this.currentTranscriptionLangKey = langConfig.key;
+        this.currentLangCode = langConfig.code;
+        this.targetLang = langConfig.locale;
+        this.diagnostics.activeLanguage = langConfig.locale;
 
-        console.log(`[VoxAudioEngine] Language set to: ${this.currentLangCode} (Locale: ${mapped})`);
+        console.log(`[VoxAudioEngine] Language set to: ${langConfig.label} (${langConfig.locale})`);
 
         if (this.isMicActive) {
-            // Restart speech recognition in new language
-            this.startSpeechRecognition(this.currentLangCode);
+            // Section 10: Seamlessly switch live speech recognition to new locale without stopping mic capture
+            this.startSpeechRecognition(langConfig.key);
         }
 
         this.loadVoices();
+        return langConfig;
     }
 
     initContextNodes() {
@@ -219,35 +270,56 @@ class VoxAudioEngine {
         }
     }
 
-    startSpeechRecognition(langCode) {
+    // One Unified Transcription Engine (Section 4)
+    startTranscription(language) {
+        return this.startSpeechRecognition(language);
+    }
+
+    startSpeechRecognition(langInput) {
         const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
         this.diagnostics.speechRecognitionSupported = !!SpeechRec;
+
+        // Resolve language configuration (Section 3: central language configuration)
+        const langConfig = this.getLanguageConfig(langInput || this.currentTranscriptionLangKey || this.currentLangCode);
+        this.currentTranscriptionLangKey = langConfig.key;
+        this.currentLangCode = langConfig.code;
+        this.targetLang = langConfig.locale;
+        this.diagnostics.activeLanguage = langConfig.locale;
 
         if (!SpeechRec) {
             this.diagnostics.speechRecognitionStatus = "unavailable";
             console.warn("[VoxAudioEngine] Web Speech Recognition API not available in this browser.");
+            if (this.onTranscriptionErrorCallback) {
+                this.onTranscriptionErrorCallback("unsupported", langConfig);
+            }
             return false;
         }
 
+        // Prevent multiple concurrent recognition instances (Section 17)
         if (this.isRecognizing && this.recognition) {
-            return true;
+            if (this.recognition.lang === langConfig.locale) {
+                return true;
+            }
+            console.log(`[VoxAudioEngine] Language switch requested (${this.recognition.lang} -> ${langConfig.locale}). Re-initializing...`);
         }
 
         try {
             if (this.recognition) {
-                try { this.recognition.abort(); } catch(e) {}
+                try {
+                    this.recognition.onstart = null;
+                    this.recognition.onresult = null;
+                    this.recognition.onerror = null;
+                    this.recognition.onend = null;
+                    this.recognition.abort();
+                } catch(e) {}
                 this.recognition = null;
             }
-
-            const targetLocale = this.mapLanguageCode(langCode || this.currentLangCode);
-            this.targetLang = targetLocale;
-            this.diagnostics.activeLanguage = targetLocale;
 
             const rec = new SpeechRec();
             rec.continuous = true;
             rec.interimResults = true;
             rec.maxAlternatives = 1;
-            rec.lang = targetLocale;
+            rec.lang = langConfig.locale;
 
             this.recognition = rec;
             this.isRecognizing = false;
@@ -255,7 +327,7 @@ class VoxAudioEngine {
             rec.onstart = () => {
                 this.isRecognizing = true;
                 this.diagnostics.speechRecognitionStatus = "listening";
-                console.log(`[VoxAudioEngine] Speech recognition active (${rec.lang})`);
+                console.log(`[VoxAudioEngine] Speech recognition active: ${langConfig.label} (${rec.lang})`);
             };
 
             rec.onresult = (event) => {
@@ -271,33 +343,39 @@ class VoxAudioEngine {
                     }
                 }
 
+                // Forward transcript chunks preserving native script without automatic translation (Sections 5, 6, 7, 8, 14)
                 if (finalChunk.trim()) {
                     this.diagnostics.transcriptEventsCount++;
                     this.diagnostics.lastTranscriptTime = new Date().toLocaleTimeString();
                     if (this.onTranscriptCallback) {
-                        this.onTranscriptCallback(finalChunk.trim(), true);
+                        this.onTranscriptCallback(finalChunk.trim(), true, langConfig.key, langConfig.locale);
                     }
                 }
                 if (interim.trim()) {
                     this.diagnostics.transcriptEventsCount++;
                     this.diagnostics.lastTranscriptTime = new Date().toLocaleTimeString();
                     if (this.onTranscriptCallback) {
-                        this.onTranscriptCallback(interim.trim(), false);
+                        this.onTranscriptCallback(interim.trim(), false, langConfig.key, langConfig.locale);
                     }
                 }
             };
 
             rec.onerror = (event) => {
-                console.warn("[VoxAudioEngine] Speech recognition notification:", event.error);
+                console.warn(`[VoxAudioEngine] Speech recognition notification (${langConfig.label}):`, event.error);
                 this.diagnostics.lastErrorMsg = event.error;
 
                 if (event.error === "not-allowed" || event.error === "service-not-allowed") {
                     this.diagnostics.speechRecognitionStatus = "permission_denied";
                     this.isRecognitionIntentionallyStopped = true;
+                    if (this.onTranscriptionErrorCallback) {
+                        this.onTranscriptionErrorCallback(event.error, langConfig);
+                    }
                 } else if (event.error === "language-not-supported") {
-                    console.warn(`[VoxAudioEngine] Language ${rec.lang} not supported on device. Falling back to en-IN.`);
-                    rec.lang = "en-IN";
-                    this.diagnostics.activeLanguage = "en-IN";
+                    console.warn(`[VoxAudioEngine] Language ${rec.lang} (${langConfig.label}) not supported on device.`);
+                    this.diagnostics.speechRecognitionStatus = "lang_unsupported";
+                    if (this.onTranscriptionErrorCallback) {
+                        this.onTranscriptionErrorCallback("language-not-supported", langConfig);
+                    }
                 } else if (event.error === "no-speech") {
                     this.diagnostics.speechRecognitionStatus = "listening";
                 } else if (event.error === "audio-capture") {
@@ -307,15 +385,15 @@ class VoxAudioEngine {
 
             rec.onend = () => {
                 this.isRecognizing = false;
-                console.log("[VoxAudioEngine] Speech recognition ended. isMicActive:", this.isMicActive);
+                console.log(`[VoxAudioEngine] Speech recognition ended (${langConfig.label}). isMicActive:`, this.isMicActive);
 
-                // Prevent dead transcription on mobile browsers (Android Chrome / iOS Safari auto-end on pauses)
+                // Section 16: Handle mobile recognition auto-restart using the CURRENT language (do NOT accidentally revert to another language!)
                 if (this.isMicActive && !this.isRecognitionIntentionallyStopped) {
                     this.diagnostics.speechRecognitionStatus = "restarting";
                     clearTimeout(this.recognitionRestartTimer);
                     this.recognitionRestartTimer = setTimeout(() => {
                         if (this.isMicActive && !this.isRecognitionIntentionallyStopped && !this.isRecognizing) {
-                            this.startSpeechRecognition(this.currentLangCode);
+                            this.startSpeechRecognition(this.currentTranscriptionLangKey);
                         }
                     }, 150);
                 } else {
@@ -326,7 +404,7 @@ class VoxAudioEngine {
             rec.start();
             return true;
         } catch (err) {
-            console.error("[VoxAudioEngine] Could not start speech recognition:", err);
+            console.error(`[VoxAudioEngine] Could not start speech recognition for ${langConfig.label}:`, err);
             this.diagnostics.speechRecognitionStatus = "failed_to_start";
             return false;
         }

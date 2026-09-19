@@ -23,16 +23,26 @@ class VoxShieldApp {
         this.trustedCircle = this.loadTrustedCircle();
         this.incidents = this.loadIncidents();
 
- this.initDOM();
- this.initWebSocket();
- this.setupAudioListeners();
+        // Central Multi-Language Transcription & Call State (Section 3 & 18)
+        const savedLang = localStorage.getItem("vox_transcription_lang") || localStorage.getItem("vox_lang") || "english";
+        const langConfig = this.audioEngine.getLanguageConfig(savedLang);
+        this.currentTranscriptionLang = langConfig.key;
+        this.currentCall = {
+            language: langConfig.key,
+            locale: langConfig.locale
+        };
+
         this.finalTranscriptSegments = [];
         this.interimTranscript = null;
         this.transcriptSegments = [];
         this.debugInterval = null;
         window.voxApp = this;
         window.app = this;
- }
+
+        this.initDOM();
+        this.initWebSocket();
+        this.setupAudioListeners();
+    }
 
  initDOM() {
         // Initialize Multi-Language Engine
@@ -176,20 +186,69 @@ class VoxShieldApp {
  });
  }
 
- // Start render loop for visualizers
- this.startVisualizerLoop();
- this.renderTrustedCircle();
- this.renderIncidents();
- }
+        // Live Transcription Language Selector (Section 9)
+        const langSelect = document.getElementById("transcription-lang-select");
+        if (langSelect) {
+            langSelect.value = this.currentTranscriptionLang;
+            langSelect.addEventListener("change", (e) => {
+                this.setTranscriptionLanguage(e.target.value);
+            });
+        }
 
- setupAudioListeners() {
- // Speech recognition live transcription
- this.audioEngine.onTranscriptCallback = (text, isFinal) => {
- this.detectionEngine.processTranscript(text, isFinal);
-        this.addTranscriptSegment("user", text, isFinal);
- this.updateTelemetryUI();
- };
- }
+        // Start render loop for visualizers
+        this.startVisualizerLoop();
+        this.renderTrustedCircle();
+        this.renderIncidents();
+    }
+
+    setTranscriptionLanguage(langKey, triggerI18n = true) {
+        const langConfig = this.audioEngine.getLanguageConfig(langKey);
+        this.currentTranscriptionLang = langConfig.key;
+        this.currentCall.language = langConfig.key;
+        this.currentCall.locale = langConfig.locale;
+        localStorage.setItem("vox_transcription_lang", langConfig.key);
+
+        const langSelect = document.getElementById("transcription-lang-select");
+        if (langSelect && langSelect.value !== langConfig.key) {
+            langSelect.value = langConfig.key;
+        }
+
+        // Section 9: Clear only the temporary/interim transcript; preserve all finalized transcripts
+        this.interimTranscript = null;
+        this.renderTranscriptUI();
+
+        // Section 10: Switch speech recognition engine safely with new locale
+        this.audioEngine.setLanguage(langConfig.key);
+        this.updateAudioDebugUI();
+
+        console.log(`[VoxShieldApp] Active transcription language set to: ${langConfig.label} (${langConfig.locale})`);
+    }
+
+    onLanguageChange(langCode) {
+        this.setTranscriptionLanguage(langCode, false);
+    }
+
+    setupAudioListeners() {
+        // Speech recognition live transcription (Section 4 & 13)
+        this.audioEngine.onTranscriptCallback = (text, isFinal, langKey, locale) => {
+            this.detectionEngine.processTranscript(text, isFinal);
+            this.addTranscriptSegment("user", text, isFinal, langKey, locale);
+            this.updateTelemetryUI();
+        };
+
+        // Graceful device/browser error handling (Section 25)
+        this.audioEngine.onTranscriptionErrorCallback = (errType, langConfig) => {
+            const transcriptBox = document.getElementById("transcript-stream");
+            if (transcriptBox && errType === "language-not-supported") {
+                const note = document.createElement("div");
+                note.className = "transcript-msg system-note";
+                note.style.borderLeft = "3px solid var(--amber)";
+                note.innerHTML = `<strong>${langConfig.label} live transcription is not supported by this browser engine.</strong><br>Microphone analysis continues in real-time.`;
+                transcriptBox.appendChild(note);
+                transcriptBox.scrollTop = transcriptBox.scrollHeight;
+            }
+        };
+    }
 
  initWebSocket() {
  const wsUrl = `ws://${window.location.hostname || "localhost"}:8000/ws/call-stream`;
@@ -629,25 +688,35 @@ class VoxShieldApp {
         this.updateTelemetryUI();
     }
 
-    addTranscriptSegment(speaker, text, isFinal) {
+    addTranscriptSegment(speaker, text, isFinal, langKey, locale) {
         if (!text || !text.trim()) return;
         text = text.trim();
         const speakerLabel = (speaker === "user" || speaker === "YOU") ? "YOU" : "CALLER";
         const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const activeLangConfig = this.audioEngine.getLanguageConfig(langKey || this.currentTranscriptionLang);
 
+        // Section 13: Complete transcript data model
         if (isFinal) {
             this.finalTranscriptSegments.push({
-                id: Date.now() + Math.random(),
+                id: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + "_" + Math.random().toString(36).substr(2, 9)),
                 speaker: speakerLabel,
+                language: activeLangConfig.key,
+                locale: locale || activeLangConfig.locale,
+                langLabel: activeLangConfig.label,
                 text: text,
-                timestamp: timeStr
+                timestamp: timeStr,
+                isFinal: true
             });
             this.interimTranscript = null;
         } else {
             this.interimTranscript = {
                 speaker: speakerLabel,
+                language: activeLangConfig.key,
+                locale: locale || activeLangConfig.locale,
+                langLabel: activeLangConfig.label,
                 text: text,
-                timestamp: timeStr
+                timestamp: timeStr,
+                isFinal: false
             };
         }
 
@@ -661,8 +730,9 @@ class VoxShieldApp {
         if ((!this.finalTranscriptSegments || this.finalTranscriptSegments.length === 0) && !this.interimTranscript) {
             if (this.detectionEngine && this.detectionEngine.isCallActive) {
                 const isMic = this.currentScenario && this.currentScenario.voice_type === "live_microphone";
+                const langConfig = this.audioEngine.getLanguageConfig(this.currentTranscriptionLang);
                 stream.innerHTML = `<div class="transcript-msg system-note">
-                    ${isMic ? "Microphone active. Listening for real-time speech..." : "Encrypted call connected. Voice transcription active..."}
+                    ${isMic ? `Microphone active. Listening for real-time speech in <strong>${langConfig.label} (${langConfig.locale})</strong>...` : "Encrypted call connected. Voice transcription active..."}
                 </div>`;
             } else {
                 stream.innerHTML = `<div class="transcript-empty" data-i18n="transcript_empty">Audio idle. Voice transcription streams here in real-time.</div>`;
@@ -672,7 +742,7 @@ class VoxShieldApp {
 
         // Stick-to-bottom scroll detection (Section 20)
         const isNearBottom = stream.scrollHeight - stream.scrollTop - stream.clientHeight < 80;
-        const highlightRegex = /(transfer|wire|rupees|inr|lakh|thousand|emergency|card blocked|otp|password|immediate|vendor|इमरजेंसी|पैसे|रुपये|ट्रांसफर|ओटीपी|पासवर्ड|मुसीबत|அவசரம்|பணம்|ரூபாய்|கடவுச்சொல்|ఎమర్జెన్సీ|డబ్బు|రూపాయలు|ఓటీపీ|ఆపద|বিপদ|টাকা|ট্রান্সফার|ওটিপি)/gi;
+        const highlightRegex = /(transfer|wire|rupees|inr|lakh|thousand|emergency|card blocked|otp|password|immediate|vendor|इमरजेंसी|पैसे|रुपये|ट्रांसफर|ओटीपी|पासवर्ड|मुसीबत|அவசரம்|பணம்|ரூபாய்|கடவுச்சொல்|எமர்ஜென்சி|డబ్బు|రూపాయలు|ఓటీపీ|ఆపద|বিপদ|টাকা|ট্রান্সফার|ওটিপি)/gi;
 
         let html = "";
         this.finalTranscriptSegments.forEach(seg => {
@@ -681,11 +751,16 @@ class VoxShieldApp {
             const isUser = seg.speaker === "YOU";
             const speakerClass = isUser ? "user-line" : "caller-line";
             const tagClass = isUser ? "tag-user" : "tag-caller";
+            // Section 11 & 23: UI Language indicator badge (10-11px, semibold, subtle background)
+            const langBadge = seg.language ? `<span class="transcript-lang-badge">${seg.language.toUpperCase()}</span>` : "";
 
             html += `<div class="transcript-msg ${speakerClass}">
-                <span class="transcript-speaker-tag ${tagClass}">${seg.speaker}</span>
-                <span class="text">${safeText}</span>
-                <span class="transcript-timestamp">${seg.timestamp}</span>
+                <div class="transcript-msg-header">
+                    <span class="transcript-speaker-tag ${tagClass}">${seg.speaker}</span>
+                    ${langBadge}
+                    <span class="transcript-timestamp">${seg.timestamp}</span>
+                </div>
+                <div class="transcript-msg-body">${safeText}</div>
             </div>`;
         });
 
@@ -695,11 +770,15 @@ class VoxShieldApp {
             const isUser = this.interimTranscript.speaker === "YOU";
             const speakerClass = isUser ? "user-line" : "caller-line";
             const tagClass = isUser ? "tag-user" : "tag-caller";
+            const langBadge = this.interimTranscript.language ? `<span class="transcript-lang-badge">${this.interimTranscript.language.toUpperCase()}</span>` : "";
 
             html += `<div class="transcript-msg ${speakerClass} interim-line">
-                <span class="transcript-speaker-tag ${tagClass}">${this.interimTranscript.speaker}</span>
-                <span class="text">${safeInterim}</span>
-                <span class="transcript-typing-dot">●●●</span>
+                <div class="transcript-msg-header">
+                    <span class="transcript-speaker-tag ${tagClass}">${this.interimTranscript.speaker}</span>
+                    ${langBadge}
+                    <span class="transcript-typing-dot">●●●</span>
+                </div>
+                <div class="transcript-msg-body">${safeInterim}</div>
             </div>`;
         }
 
