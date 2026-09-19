@@ -395,20 +395,10 @@
                                         </div>
                                     </div>
 
-                                    <!-- Clean Live Transcription Language Selector (Section 9) -->
-                                    <div class="transcript-lang-control-bar">
-                                        <div class="transcript-lang-label-group">
-                                            <span class="transcript-lang-dot"></span>
-                                            <span class="transcript-lang-subhead">TRANSCRIPTION LANGUAGE</span>
-                                        </div>
-                                        <div class="transcript-lang-select-box">
-                                            <select id="transcription-lang-select" class="transcript-lang-select" aria-label="Select Live Speech Transcription Language">
-                                                <option value="english">English (en-IN)</option>
-                                                <option value="hindi">Hindi (हिन्दी / hi-IN)</option>
-                                                <option value="tamil">Tamil (தமிழ் / ta-IN)</option>
-                                                <option value="telugu">Telugu (తెలుగు / te-IN)</option>
-                                            </select>
-                                        </div>
+                                    <!-- Automatic Multi-Language Detection Header (Zero Manual Selection) -->
+                                    <div class="transcript-auto-lang-indicator">
+                                        <span class="transcript-auto-dot animate-pulse"></span>
+                                        <span class="transcript-auto-text">● AUTOMATIC LANGUAGE DETECTION</span>
                                     </div>
 
                                     <div id="transcript-stream" class="transcript-scroll-area">
@@ -452,8 +442,20 @@
                                             <span id="dbg-events" class="debug-metric-val">0</span>
                                         </div>
                                         <div class="debug-metric-row">
-                                            <span class="debug-metric-label">Active Locale:</span>
-                                            <span id="dbg-locale" class="debug-metric-val">en-IN</span>
+                                            <span class="debug-metric-label">Detected Language:</span>
+                                            <span id="dbg-detected-lang" class="debug-metric-val">Auto (listening)</span>
+                                        </div>
+                                        <div class="debug-metric-row">
+                                            <span class="debug-metric-label">Detection Confidence:</span>
+                                            <span id="dbg-detected-conf" class="debug-metric-val">--</span>
+                                        </div>
+                                        <div class="debug-metric-row">
+                                            <span class="debug-metric-label">Speech Recognition:</span>
+                                            <span id="dbg-stt-status" class="debug-metric-val">Active</span>
+                                        </div>
+                                        <div class="debug-metric-row">
+                                            <span class="debug-metric-label">Translation:</span>
+                                            <span id="dbg-translation-status" class="debug-metric-val">Active (Natural En)</span>
                                         </div>
                                     </div>
                                 </div>

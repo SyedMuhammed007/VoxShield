@@ -23,15 +23,13 @@ class VoxShieldApp {
         this.trustedCircle = this.loadTrustedCircle();
         this.incidents = this.loadIncidents();
 
-        // Central Multi-Language Transcription & Call State (Section 3 & 18)
-        const savedLang = localStorage.getItem("vox_transcription_lang") || localStorage.getItem("vox_lang") || "english";
-        const langConfig = this.audioEngine.getLanguageConfig(savedLang);
-        this.currentTranscriptionLang = langConfig.key;
+        // Autonomous Multi-Language Real-Time Transcription (Zero manual language selector)
         this.currentCall = {
-            language: langConfig.key,
-            locale: langConfig.locale
+            id: null,
+            caller: null,
+            startTime: null,
+            mode: "automatic_multilingual"
         };
-
         this.finalTranscriptSegments = [];
         this.interimTranscript = null;
         this.transcriptSegments = [];
@@ -186,14 +184,7 @@ class VoxShieldApp {
  });
  }
 
-        // Live Transcription Language Selector (Section 9)
-        const langSelect = document.getElementById("transcription-lang-select");
-        if (langSelect) {
-            langSelect.value = this.currentTranscriptionLang;
-            langSelect.addEventListener("change", (e) => {
-                this.setTranscriptionLanguage(e.target.value);
-            });
-        }
+        // Automatic Multi-Language Detection Active (No manual selector)
 
         // Start render loop for visualizers
         this.startVisualizerLoop();
@@ -201,49 +192,34 @@ class VoxShieldApp {
         this.renderIncidents();
     }
 
-    setTranscriptionLanguage(langKey, triggerI18n = true) {
-        const langConfig = this.audioEngine.getLanguageConfig(langKey);
-        this.currentTranscriptionLang = langConfig.key;
-        this.currentCall.language = langConfig.key;
-        this.currentCall.locale = langConfig.locale;
-        localStorage.setItem("vox_transcription_lang", langConfig.key);
-
-        const langSelect = document.getElementById("transcription-lang-select");
-        if (langSelect && langSelect.value !== langConfig.key) {
-            langSelect.value = langConfig.key;
-        }
-
-        // Section 9: Clear only the temporary/interim transcript; preserve all finalized transcripts
-        this.interimTranscript = null;
-        this.renderTranscriptUI();
-
-        // Section 10: Switch speech recognition engine safely with new locale
-        this.audioEngine.setLanguage(langConfig.key);
-        this.updateAudioDebugUI();
-
-        console.log(`[VoxShieldApp] Active transcription language set to: ${langConfig.label} (${langConfig.locale})`);
-    }
-
     onLanguageChange(langCode) {
-        this.setTranscriptionLanguage(langCode, false);
+        console.log(`[VoxShieldApp] UI language changed to: ${langCode}`);
     }
 
     setupAudioListeners() {
-        // Speech recognition live transcription (Section 4 & 13)
-        this.audioEngine.onTranscriptCallback = (text, isFinal, langKey, locale) => {
-            this.detectionEngine.processTranscript(text, isFinal);
-            this.addTranscriptSegment("user", text, isFinal, langKey, locale);
+        // Autonomous Multi-Language Speech Recognition & English Translation Callback (Sections 2, 3, 6, 8)
+        this.audioEngine.onTranscriptCallback = (segmentData) => {
+            if (typeof segmentData === "object" && segmentData !== null) {
+                const englishText = segmentData.englishText || segmentData.text;
+                this.detectionEngine.processTranscript(englishText, segmentData.isFinal);
+                this.addTranscriptSegment(segmentData);
+            } else {
+                const rawText = String(segmentData);
+                this.detectionEngine.processTranscript(rawText, true);
+                this.addTranscriptSegment("user", rawText, true);
+            }
             this.updateTelemetryUI();
+            this.updateAudioDebugUI();
         };
 
-        // Graceful device/browser error handling (Section 25)
-        this.audioEngine.onTranscriptionErrorCallback = (errType, langConfig) => {
+        // Graceful device/browser fallback (Section 18 & 25)
+        this.audioEngine.onTranscriptionErrorCallback = (errType) => {
             const transcriptBox = document.getElementById("transcript-stream");
-            if (transcriptBox && errType === "language-not-supported") {
+            if (transcriptBox && (errType === "unsupported" || errType === "language-not-supported")) {
                 const note = document.createElement("div");
                 note.className = "transcript-msg system-note";
-                note.style.borderLeft = "3px solid var(--amber)";
-                note.innerHTML = `<strong>${langConfig.label} live transcription is not supported by this browser engine.</strong><br>Microphone analysis continues in real-time.`;
+                note.style.borderLeft = "3px solid var(--ios-warning, #f59e0b)";
+                note.innerHTML = `<strong>Automatic language detection is unavailable on this browser.</strong><br><span style="font-size: 11px; opacity: 0.85;">Voice analysis remains active. Live transcription is temporarily unavailable.</span>`;
                 transcriptBox.appendChild(note);
                 transcriptBox.scrollTop = transcriptBox.scrollHeight;
             }
@@ -688,36 +664,51 @@ class VoxShieldApp {
         this.updateTelemetryUI();
     }
 
-    addTranscriptSegment(speaker, text, isFinal, langKey, locale) {
-        if (!text || !text.trim()) return;
-        text = text.trim();
-        const speakerLabel = (speaker === "user" || speaker === "YOU") ? "YOU" : "CALLER";
+    addTranscriptSegment(speakerOrObj, text, isFinal = true, langKey = "english", locale = "en-IN") {
+        let segObj = null;
         const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        const activeLangConfig = this.audioEngine.getLanguageConfig(langKey || this.currentTranscriptionLang);
 
-        // Section 13: Complete transcript data model
-        if (isFinal) {
-            this.finalTranscriptSegments.push({
-                id: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + "_" + Math.random().toString(36).substr(2, 9)),
+        if (typeof speakerOrObj === "object" && speakerOrObj !== null) {
+            const s = speakerOrObj;
+            const englishTxt = (s.englishText || s.text || "").trim();
+            if (!englishTxt && !(s.originalText || "").trim()) return;
+
+            segObj = {
+                id: s.id || ((typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + "_" + Math.random().toString(36).substr(2, 5))),
+                speaker: (s.speaker === "caller" || s.speaker === "CALLER") ? "CALLER" : "YOU",
+                detectedLanguage: s.detectedLanguage || "en",
+                detectedLangLabel: s.detectedLangLabel || "English",
+                originalText: s.originalText || englishTxt,
+                englishText: englishTxt,
+                text: englishTxt, // Natural English output (Section 3 & 8)
+                timestamp: s.timestamp || timeStr,
+                confidence: s.confidence || 0.95,
+                isFinal: s.isFinal !== undefined ? s.isFinal : true
+            };
+        } else {
+            const rawText = (text || "").trim();
+            if (!rawText) return;
+            const speakerLabel = (speakerOrObj === "user" || speakerOrObj === "YOU") ? "YOU" : "CALLER";
+
+            segObj = {
+                id: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + "_" + Math.random().toString(36).substr(2, 5)),
                 speaker: speakerLabel,
-                language: activeLangConfig.key,
-                locale: locale || activeLangConfig.locale,
-                langLabel: activeLangConfig.label,
-                text: text,
+                detectedLanguage: langKey || "en",
+                detectedLangLabel: langKey ? (langKey.charAt(0).toUpperCase() + langKey.slice(1)) : "English",
+                originalText: rawText,
+                englishText: rawText,
+                text: rawText,
                 timestamp: timeStr,
-                isFinal: true
-            });
+                confidence: 0.95,
+                isFinal: isFinal
+            };
+        }
+
+        if (segObj.isFinal) {
+            this.finalTranscriptSegments.push(segObj);
             this.interimTranscript = null;
         } else {
-            this.interimTranscript = {
-                speaker: speakerLabel,
-                language: activeLangConfig.key,
-                locale: locale || activeLangConfig.locale,
-                langLabel: activeLangConfig.label,
-                text: text,
-                timestamp: timeStr,
-                isFinal: false
-            };
+            this.interimTranscript = segObj;
         }
 
         this.renderTranscriptUI();
@@ -730,10 +721,19 @@ class VoxShieldApp {
         if ((!this.finalTranscriptSegments || this.finalTranscriptSegments.length === 0) && !this.interimTranscript) {
             if (this.detectionEngine && this.detectionEngine.isCallActive) {
                 const isMic = this.currentScenario && this.currentScenario.voice_type === "live_microphone";
-                const langConfig = this.audioEngine.getLanguageConfig(this.currentTranscriptionLang);
-                stream.innerHTML = `<div class="transcript-msg system-note">
-                    ${isMic ? `Microphone active. Listening for real-time speech in <strong>${langConfig.label} (${langConfig.locale})</strong>...` : "Encrypted call connected. Voice transcription active..."}
-                </div>`;
+                if (isMic) {
+                    stream.innerHTML = `<div class="transcript-msg system-note">
+                        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                            <span class="transcript-speaker-tag tag-user" style="font-size: 10px; padding: 2px 6px;">ACTIVE</span>
+                            <span style="font-size: 11px; font-weight: 600; color: #10b981;">Microphone stream active.</span>
+                        </div>
+                        <div style="font-size: 11px; color: var(--text-dim); line-height: 1.45;">
+                            Speak naturally. Real-time speech transcription & neural anti-spoofing running in volatile RAM...
+                        </div>
+                    </div>`;
+                } else {
+                    stream.innerHTML = `<div class="transcript-msg system-note">Encrypted call connected. Voice transcription active...</div>`;
+                }
             } else {
                 stream.innerHTML = `<div class="transcript-empty" data-i18n="transcript_empty">Audio idle. Voice transcription streams here in real-time.</div>`;
             }
@@ -742,22 +742,21 @@ class VoxShieldApp {
 
         // Stick-to-bottom scroll detection (Section 20)
         const isNearBottom = stream.scrollHeight - stream.scrollTop - stream.clientHeight < 80;
-        const highlightRegex = /(transfer|wire|rupees|inr|lakh|thousand|emergency|card blocked|otp|password|immediate|vendor|इमरजेंसी|पैसे|रुपये|ट्रांसफर|ओटीपी|पासवर्ड|मुसीबत|அவசரம்|பணம்|ரூபாய்|கடவுச்சொல்|எமர்ஜென்சி|డబ్బు|రూపాయలు|ఓటీపీ|ఆపద|বিপদ|টাকা|ট্রান্সফার|ওটিপি)/gi;
+        const highlightRegex = /(transfer|wire|rupees|inr|lakh|thousand|emergency|card blocked|otp|password|immediate|vendor|इमरजेंसी|पैसे|रुपये|ट्रांसफर|ओटीपी|पासवर्ड|मुसीबत|அவசரம்|பணம்|ரூபாய்|கடவுச்சொல்|எமர்ஜென்சி|డబ్బు|రూపాయలు|ఓటీపీ|ఆపద|బిপদ|টাকা|ট্রান্সফার|ওটিপি)/gi;
 
         let html = "";
         this.finalTranscriptSegments.forEach(seg => {
-            let safeText = seg.text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            const displayText = seg.englishText || seg.text;
+            let safeText = displayText.replace(/</g, "&lt;").replace(/>/g, "&gt;");
             safeText = safeText.replace(highlightRegex, `<mark class="threat-keyword">$1</mark>`);
             const isUser = seg.speaker === "YOU";
             const speakerClass = isUser ? "user-line" : "caller-line";
             const tagClass = isUser ? "tag-user" : "tag-caller";
-            // Section 11 & 23: UI Language indicator badge (10-11px, semibold, subtle background)
-            const langBadge = seg.language ? `<span class="transcript-lang-badge">${seg.language.toUpperCase()}</span>` : "";
 
+            // Clean UI: No language badges displayed per Section 10
             html += `<div class="transcript-msg ${speakerClass}">
                 <div class="transcript-msg-header">
                     <span class="transcript-speaker-tag ${tagClass}">${seg.speaker}</span>
-                    ${langBadge}
                     <span class="transcript-timestamp">${seg.timestamp}</span>
                 </div>
                 <div class="transcript-msg-body">${safeText}</div>
@@ -765,17 +764,16 @@ class VoxShieldApp {
         });
 
         if (this.interimTranscript) {
-            let safeInterim = this.interimTranscript.text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            const displayInterim = this.interimTranscript.englishText || this.interimTranscript.text;
+            let safeInterim = displayInterim.replace(/</g, "&lt;").replace(/>/g, "&gt;");
             safeInterim = safeInterim.replace(highlightRegex, `<mark class="threat-keyword">$1</mark>`);
             const isUser = this.interimTranscript.speaker === "YOU";
             const speakerClass = isUser ? "user-line" : "caller-line";
             const tagClass = isUser ? "tag-user" : "tag-caller";
-            const langBadge = this.interimTranscript.language ? `<span class="transcript-lang-badge">${this.interimTranscript.language.toUpperCase()}</span>` : "";
 
             html += `<div class="transcript-msg ${speakerClass} interim-line">
                 <div class="transcript-msg-header">
                     <span class="transcript-speaker-tag ${tagClass}">${this.interimTranscript.speaker}</span>
-                    ${langBadge}
                     <span class="transcript-typing-dot">●●●</span>
                 </div>
                 <div class="transcript-msg-body">${safeInterim}</div>
@@ -1450,7 +1448,10 @@ class VoxShieldApp {
         setVal("dbg-frames", diag.audioFramesReceived.toLocaleString());
         setVal("dbg-rec", diag.speechRecognitionStatus, diag.speechRecognitionStatus === "listening" ? "ok" : (diag.speechRecognitionStatus === "unavailable" ? "err" : "warn"));
         setVal("dbg-events", diag.transcriptEventsCount.toString());
-        setVal("dbg-locale", diag.activeLanguage || "en-IN");
+        setVal("dbg-detected-lang", diag.detectedLanguage || "Auto-detecting", diag.detectedLanguage ? "ok" : "warn");
+        setVal("dbg-detected-conf", diag.detectionConfidence || "--");
+        setVal("dbg-stt-status", diag.speechRecognitionStatus === "listening" ? "Active" : (diag.speechRecognitionStatus || "Idle"), diag.speechRecognitionStatus === "listening" ? "ok" : "warn");
+        setVal("dbg-translation-status", diag.translationStatus || "Active (Natural En)", "ok");
     }
 }
 
